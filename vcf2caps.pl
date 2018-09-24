@@ -1293,7 +1293,7 @@ sub download_enzyme_db
 	
 	my $url = 'http://rebase.neb.com/rebase/link_gcg';
 	my $file = $working_dir . "link_gcg";
-	
+	print "$file\n";
 	my $response_code = getstore($url, $file);
 	if ($response_code != 200)
 	{
@@ -1306,13 +1306,14 @@ sub download_enzyme_db
 		$terminal->insert('end', "The database file downloaded sucessfully.\n\n");
 		$terminal->see('end');
 		
-		$enzyme_file_name = 'link_gcg';
-		if (defined $enzyme_file_name and -e $enzyme_file_name and $jobID == 0)
+		$enzyme_file_name = $file;
+		
+		if (defined $enzyme_file_name and -f $file and $jobID == 0)
 		{
 			
 			start_enzymes_check(); $enzyme_analyze_button->configure(-state => 'disabled');
 		}
-		elsif (defined $enzyme_file_name and !-e $enzyme_file_name)
+		elsif (defined $enzyme_file_name and !-f $file)
 		{
 			$enzyme_check->configure(-image => $fail_image);
 		#	$enzyme_check_status->configure(-text => "Error - the file does not exist");
@@ -1320,6 +1321,8 @@ sub download_enzyme_db
 			$terminal->insert('end', " - the file does not exist.\n\n");
 			$terminal->see('end');
 		}
+		
+		
 	}
 }
 
@@ -3148,30 +3151,61 @@ sub work
 					
 					my $enzREGEX = enzREGEX( $enzyme_recogn_seq ); # przypisanie zmiennej $enzREGEX wyniku działania funkcji enzREGEX(<sekwencja DNA>), która zwraca sekwencję DNA w formie REGEX
 					
-					
-					##13 Określenie liczby wyekstrachowanych fragmentów DNA dla każdej wersji allelicznej analizowanego SNP'u, które są zrozpoznawane przez dany enzym restrykcyjny. Wartości te są zapisywane do hashu %matches1
-					for (my $c = 0; $c < $SNP_alleles_No; $c++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
-					{ 
-						for (my $i = 0; $i < $partSeq_size[$c]; $i++) # ... dla każdego wyekstrachowanego fragmentu DNA danej wersji allelicznej analizowanego SNP'u ...
-						{	
-							my $partSeq_upper = uc $partSeq[$c][$i];
-							if ($partSeq_upper =~ /$enzREGEX/) # ... porównywana jest zgodność sekwencji danego fragmentu DNA z sekencją (w formie REGEX) rozpoznawaną przez enzym. Jeżeli sekwencje są identyczne, to ...
-							{
-								#	print "Sek: $c, len:  $partSeq[$c][$i] == $enzREGEX\n"; ####################################
-								#	print "$enzyme_recogn_seq, $partSeq[$c][$i] == $enzREGEX\n";
-								
-								$numberOfMatches++; # ... wartość zmiennej $numberOfMatches (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla danej wersji allelicznej analizowanego SNP'u) powiększana jest o 1
-								$numberOfMatches_all++; # ... wartość zmiennej $numberOfMatches_all (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla wszystkich wersji allelicznych analizowanego SNP'u) powiększana jest o 1
+					my $regex_inv = regex_inv($enzREGEX);
+					if ($regex_inv eq $enzREGEX) # Sprawdzenie czy rozpoznawana przez testowany enzym sekwencja jest palindromem
+					{
+						##13 Określenie liczby wyekstrachowanych fragmentów DNA dla każdej wersji allelicznej analizowanego SNP'u, które są zrozpoznawane przez dany enzym restrykcyjny. Wartości te są zapisywane do hashu %matches1
+						for (my $c = 0; $c < $SNP_alleles_No; $c++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
+						{ 
+							for (my $i = 0; $i < $partSeq_size[$c]; $i++) # ... dla każdego wyekstrachowanego fragmentu DNA danej wersji allelicznej analizowanego SNP'u ...
+							{	
+								my $partSeq_upper = uc $partSeq[$c][$i];
+								if ($partSeq_upper =~ /$enzREGEX/) # ... porównywana jest zgodność sekwencji danego fragmentu DNA z sekencją (w formie REGEX) rozpoznawaną przez enzym. Jeżeli sekwencje są identyczne, to ...
+								{
+									#	print "Sek: $c, len:  $partSeq[$c][$i] == $enzREGEX\n"; ####################################
+									#	print "$enzyme_recogn_seq, $partSeq[$c][$i] == $enzREGEX\n";
+									
+									$numberOfMatches++; # ... wartość zmiennej $numberOfMatches (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla danej wersji allelicznej analizowanego SNP'u) powiększana jest o 1
+									$numberOfMatches_all++; # ... wartość zmiennej $numberOfMatches_all (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla wszystkich wersji allelicznych analizowanego SNP'u) powiększana jest o 1
+								}
+		#							else
+		#							{
+		#								print "Sek: $c $partSeq[$c][$i] :: $enzREGEX\n"; ####################################
+		#							}
 							}
-	#							else
-	#							{
-	#								print "Sek: $c $partSeq[$c][$i] :: $enzREGEX\n"; ####################################
-	#							}
+							$matches1{$c} = $numberOfMatches; # Do hashu %matches1 jest zapisywana liczba wyekstrachowanych fragmentów DNA ($numberOfMatches) dla każdej wersji allelicznej analizowanego SNP'u ($c), które są zrozpoznawane przez dany enzym restrykcyjny
+							$numberOfMatches = 0; # Zmienna $numberOfMatches jest zerwowana przed kolejnym cyklem pętli
 						}
-						$matches1{$c} = $numberOfMatches; # Do hashu %matches1 jest zapisywana liczba wyekstrachowanych fragmentów DNA ($numberOfMatches) dla każdej wersji allelicznej analizowanego SNP'u ($c), które są zrozpoznawane przez dany enzym restrykcyjny
-						$numberOfMatches = 0; # Zmienna $numberOfMatches jest zerwowana przed kolejnym cyklem pętli
+						##13
 					}
-					##13
+					else # Jeżeli rozpoznawana sekwencja nie jest palindromem, to testowany fragment DNA jest badany pod kątem występowania sekwencji komplementarnej do rozpoznawanej przez enzym
+					{
+						##13 Określenie liczby wyekstrachowanych fragmentów DNA dla każdej wersji allelicznej analizowanego SNP'u, które są zrozpoznawane przez dany enzym restrykcyjny. Wartości te są zapisywane do hashu %matches1
+						for (my $c = 0; $c < $SNP_alleles_No; $c++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
+						{ 
+							for (my $i = 0; $i < $partSeq_size[$c]; $i++) # ... dla każdego wyekstrachowanego fragmentu DNA danej wersji allelicznej analizowanego SNP'u ...
+							{	
+								my $partSeq_upper = uc $partSeq[$c][$i];
+								if ($partSeq_upper =~ /$enzREGEX/ or $partSeq_upper =~ /$regex_inv/) # ... porównywana jest zgodność sekwencji danego fragmentu DNA z sekencją (w formie REGEX) rozpoznawaną przez enzym. Jeżeli sekwencje są identyczne, to ...
+								{
+									#	print "Sek: $c, len:  $partSeq[$c][$i] == $enzREGEX\n"; ####################################
+									#	print "$enzyme_recogn_seq, $partSeq[$c][$i] == $enzREGEX\n";
+									
+									$numberOfMatches++; # ... wartość zmiennej $numberOfMatches (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla danej wersji allelicznej analizowanego SNP'u) powiększana jest o 1
+									$numberOfMatches_all++; # ... wartość zmiennej $numberOfMatches_all (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla wszystkich wersji allelicznych analizowanego SNP'u) powiększana jest o 1
+								}
+		#							else
+		#							{
+		#								print "Sek: $c $partSeq[$c][$i] :: $enzREGEX\n"; ####################################
+		#							}
+							}
+							$matches1{$c} = $numberOfMatches; # Do hashu %matches1 jest zapisywana liczba wyekstrachowanych fragmentów DNA ($numberOfMatches) dla każdej wersji allelicznej analizowanego SNP'u ($c), które są zrozpoznawane przez dany enzym restrykcyjny
+							$numberOfMatches = 0; # Zmienna $numberOfMatches jest zerwowana przed kolejnym cyklem pętli
+						}
+						##13
+					}
+					
+					
 
 
 					
@@ -3571,17 +3605,38 @@ sub work
 					my $Seq_singleNucl_size = @Seq_singleNucl;
 					
 					## Pętla dzieli analizowaną sekwencję z danym allelem SNPu na którsze fragmenty o długości równej długości sekwencji rozpoznawanej przez enzym, a następnie porównuje te fragmenty z sekwencją ropoznawaną przez enzym.
-					for (my $i = 0; $i < $Seq_singleNucl_size - $EnzSeqSingleNuclSize; $i++)
+					my $regex_inv = regex_inv($enzREGEX);
+					if ($regex_inv eq $enzREGEX) # Sprawdzenie czy rozpoznawana przez testowany enzym sekwencja jest palindromem
 					{
-						my @seqPart = @Seq_singleNucl[$i..( $i + ($EnzSeqSingleNuclSize - 1) )]; # Ekstrakcja fragmentu o długości równej długości sekwencji rozpoznawanej przez enzym
-						my $seqPart = join("",@seqPart);
-						my $seqPart_upper = uc $seqPart;
-						if (uc $seqPart_upper =~ /$enzREGEX/)
+						for (my $i = 0; $i < $Seq_singleNucl_size - $EnzSeqSingleNuclSize; $i++)
 						{
-							$NoOfRecognSeq++;
+							my @seqPart = @Seq_singleNucl[$i..( $i + ($EnzSeqSingleNuclSize - 1) )]; # Ekstrakcja fragmentu o długości równej długości sekwencji rozpoznawanej przez enzym
+							my $seqPart = join("",@seqPart);
+							my $seqPart_upper = uc $seqPart;
+							if (uc $seqPart_upper =~ /$enzREGEX/)
+							{
+								$NoOfRecognSeq++;
+							}
 						}
+						##
 					}
-					##
+					else
+					{
+						for (my $i = 0; $i < $Seq_singleNucl_size - $EnzSeqSingleNuclSize; $i++)
+						{
+							my @seqPart = @Seq_singleNucl[$i..( $i + ($EnzSeqSingleNuclSize - 1) )]; # Ekstrakcja fragmentu o długości równej długości sekwencji rozpoznawanej przez enzym
+							my $seqPart = join("",@seqPart);
+							my $seqPart_upper = uc $seqPart;
+							if (uc $seqPart_upper =~ /$enzREGEX/ or uc $seqPart_upper =~ /$regex_inv/)
+							{
+								$NoOfRecognSeq++;
+							}
+						}
+						##
+					}
+					
+					
+					
 					
 					$AllSeq_NoOfRecognSeq{$snp_allele_ID} = $NoOfRecognSeq; # Zapis do hashu %AllSeq_NoOfRecognSeq liczby rozpoznawanych sekwencji dla danego allelu SNPu
 				}
@@ -3625,7 +3680,7 @@ sub work
 			if ($SeqIndv[$i] =~ /[ATGC]/) {$regex = $regex.$SeqIndv[$i]}
 			elsif ($SeqIndv[$i] eq "R") {$regex = $regex."[AG]"}
 			elsif ($SeqIndv[$i] eq "Y") {$regex = $regex."[CT]"}
-			elsif ($SeqIndv[$i] eq "S") {$regex = $regex."[GC]"}
+			elsif ($SeqIndv[$i] eq "S") {$regex = $regex."[CG]"}
 			elsif ($SeqIndv[$i] eq "W") {$regex = $regex."[AT]"}
 			elsif ($SeqIndv[$i] eq "K") {$regex = $regex."[GT]"}
 			elsif ($SeqIndv[$i] eq "M") {$regex = $regex."[AC]"}
@@ -3633,7 +3688,7 @@ sub work
 			elsif ($SeqIndv[$i] eq "D") {$regex = $regex."[AGT]"}
 			elsif ($SeqIndv[$i] eq "H") {$regex = $regex."[ACT]"}
 			elsif ($SeqIndv[$i] eq "V") {$regex = $regex."[ACG]"}
-			elsif ($SeqIndv[$i] eq "N") {$regex = $regex."[ATGC]"}
+			elsif ($SeqIndv[$i] eq "N") {$regex = $regex."[ACGT]"}
 		}
 		return $regex;
 	}
@@ -3706,5 +3761,57 @@ sub work
 			return ($line,$error_code);
 
 		close $fh;
+	}
+	
+	
+	sub regex_inv
+	{
+		my $input = $_[0];
+		my @data = split("", $input);
+		my @data_inv = ();
+		
+		my @temp = ();
+		my $check = 0;
+		for (my $i = scalar(@data) - 1; $i >= 0; $i-- )
+		{
+			if ($data[$i] =~ /\]/)
+			{
+				$check = 1;
+				next;
+			}
+			elsif ($data[$i] =~ /\[/)
+			{
+				my @temp_sorted = sort { $a cmp $b } @temp;
+				push @temp_sorted, ']';
+				unshift @temp_sorted, '[';
+				push @data_inv, join("", @temp_sorted);
+				
+				@temp = ();
+				$check = 0;
+			}
+			elsif ($check == 1 and $data[$i] =~ /[^\[\]]/ )
+			{
+				unshift @temp, invert($data[$i]);
+			}
+			else
+			{
+				push @data_inv, invert($data[$i]);
+			}
+		}
+		
+		return join("", @data_inv);
+	}
+
+	sub invert
+	{
+		my $input = $_[0];
+		my $output = "";
+		if ($input eq 'A') { $output = 'T' }
+		elsif ($input eq 'T') { $output = 'A' }
+		elsif ($input eq 'C') { $output = 'G' }
+		elsif ($input eq 'G') { $output = 'C' }
+		else { $output = $input }
+		
+		return $output;
 	}
 }
