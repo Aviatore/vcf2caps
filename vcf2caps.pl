@@ -2572,6 +2572,7 @@ sub work
 								$data[0] =~ s/;//;
 								$data[2] =~ s/[_']//g;
 								my @tmp = (); # <cut_site>,<sequence>,<overhang>,<isoschisomers>,<company_ID>
+								$data[2] =~ s/(^[nN]+)|([nN]+$)//g; # removing non-specific nucleotides (N) from beginning and end of recognized sequence
 								@tmp = ($data[1],$data[2],$data[3]);
 								if ($data[5] =~ /^>/)
 								{

@@ -1,7 +1,8 @@
 use strict;
 use warnings;
 
-my $seq = "CnnGnnnnnnnnnnnnn";
+my $seq = "NNNCnnGnnnnnnnnNNnnnnn";
+$seq =~ s/(^[nN]+)|([nN]+$)//g;
 my $regex = enzREGEX(uc $seq);
 print "$regex\t" . regex_inv($regex) . "\n";
 
