@@ -1,12 +1,34 @@
 use strict;
 use warnings;
 
-my $regex = '[ACG]AT[CGT]';
+my $seq = "CnnGnnnnnnnnnnnnn";
+my $regex = enzREGEX(uc $seq);
+print "$regex\t" . regex_inv($regex) . "\n";
 
-if (regex_inv($regex) eq $regex)
-{
-	print "OK";
-}
+
+
+sub enzREGEX
+	{
+		my $regex = "";
+		my ($Seq) = @_;
+		my @SeqIndv = split("",$Seq);
+		my $SeqIndvL = @SeqIndv;
+		for (my $i=0;$i<$SeqIndvL;$i++) {
+			if ($SeqIndv[$i] =~ /[ATGC]/) {$regex = $regex.$SeqIndv[$i]}
+			elsif ($SeqIndv[$i] eq "R") {$regex = $regex."[AG]"}
+			elsif ($SeqIndv[$i] eq "Y") {$regex = $regex."[CT]"}
+			elsif ($SeqIndv[$i] eq "S") {$regex = $regex."[CG]"}
+			elsif ($SeqIndv[$i] eq "W") {$regex = $regex."[AT]"}
+			elsif ($SeqIndv[$i] eq "K") {$regex = $regex."[GT]"}
+			elsif ($SeqIndv[$i] eq "M") {$regex = $regex."[AC]"}
+			elsif ($SeqIndv[$i] eq "B") {$regex = $regex."[CGT]"}
+			elsif ($SeqIndv[$i] eq "D") {$regex = $regex."[AGT]"}
+			elsif ($SeqIndv[$i] eq "H") {$regex = $regex."[ACT]"}
+			elsif ($SeqIndv[$i] eq "V") {$regex = $regex."[ACG]"}
+			elsif ($SeqIndv[$i] eq "N") {$regex = $regex."[ACGT]"}
+		}
+		return $regex;
+	}
 
 sub regex_inv
 {

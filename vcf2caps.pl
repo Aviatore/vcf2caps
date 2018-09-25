@@ -2041,6 +2041,7 @@ sub start_vcf_check
 
 sub start_snp2caps
 {
+	$snp2caps_results[1] = 0;
 	$jobID = 5;
 	$L_lower_col2_mining_button->configure(-state => 'disabled');
 	$capsMining_percent = 0;
@@ -2068,7 +2069,7 @@ sub start_snp2caps
 			$caps_mining_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $fancy_SNPNo,$vcf_analysis_results{NoOfSNPs},$capsMining_percent) );
 			$caps_mining_progress_frame->pack(-side => 'left', -anchor => 'w', -padx => 5);
 			
-			$snp2caps_results[1] = 0;
+			
 			$terminal->insert('end', "Start CAPS mining ...\n\n");
 			$terminal->see('end');
 			my $repeat2;
