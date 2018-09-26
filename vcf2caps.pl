@@ -544,7 +544,7 @@ $R_frame_selEnzymes_listBox->bind('<<ListboxSelect>>' => sub {
 			$R_frame_enzymeProperties_label_text->tagConfigure('comp', -foreground => 'red');
 			$R_frame_enzymeProperties_label_text->tagConfigure('iso', -foreground => 'black');
 		}
-	else
+		else
 		{
 			my $first = 0;
 			foreach my $company_ID ( split("", ( split("\t", $enzymes_db{$selected_enz_name}) )[4] ) )
@@ -2570,6 +2570,7 @@ sub work
 							elsif ($data[0] =~ /[A-Z][a-z]{2}/ and $date_check == 1)
 							{
 								$data[0] =~ s/;//;
+								my $raw_seq = $data[2];
 								$data[2] =~ s/[_']//g;
 								my @tmp = (); # <cut_site>,<sequence>,<overhang>,<isoschisomers>,<company_ID>
 								$data[2] =~ s/(^[nN]+)|([nN]+$)//g; # removing non-specific nucleotides (N) from beginning and end of recognized sequence
@@ -2603,7 +2604,7 @@ sub work
 									push @tmp, ($data[5],$data[6]);
 								}
 								
-								$enzymes_db{$data[0]} = join("\t",@tmp);
+								$enzymes_db{$data[0]} = join("\t",@tmp,$raw_seq);
 							#	print "$enzymes_db{$data[0]}\n";
 							#	$enzymes_db{$data[0]}{cut_site} = $data[1];
 							#	$enzymes_db{$data[0]}{sequence} = $data[2];
@@ -3293,7 +3294,7 @@ sub work
 						
 						open my $fh, '>>', "$working_dir" . "out.txt"; # Otwarcie do zapisu pliku wynikowego 'out.txt'
 							print $fh "$seqName\n";
-							my $enz_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[1];
+							my $enz_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[-1];
 							my $tmp = $selected_enz_names_mix{$selected_enz_names_tmp[$i]};
 							print $fh "$tmp\t$enz_seq\n";
 							
@@ -3575,6 +3576,8 @@ sub work
 				{
 					@input = split("\t",$bier); # Do dablicy @input zapisywane są poszczególne pola danej linii
 					$EnzSeq = $input[1];
+					$EnzSeq =~ s/[_']//g;
+					$EnzSeq =~ s/(^[nN]+)|([nN]+$)//g;
 					push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
 				}
 				elsif ($bier =~ /^[ra]/ and scalar(split("\t", $bier)) == 5) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od 'ref', to ...
