@@ -2522,8 +2522,10 @@ sub work
 			if (defined $enzyme_file_name)
 			{
 				my $line = 0;
-				my $enzymes_err = 0;
 				my $enzymes_exists = 1;
+				my $db_OK = 0;
+				$enzymes_db{date} = "unknown";
+				my $enzymes_begin = 0;
 				###################
 				open $fh, '<', $enzyme_file_name;
 					my @id_vs_companyName = (); # <ID_firmy>,<nazwa_firmy>
@@ -2531,34 +2533,44 @@ sub work
 					
 					while (<$fh>)
 					{
-						chomp $_;
+						# Check database file format
+						if ($_ =~ /REBASE\sversion/ and $db_OK == 0)
+						{
+							$db_OK = 1;
+						}
+						elsif ($db_OK == 0)
+						{
+							next;
+						}
 						
-						
+						chomp $_;						
 						my @data = split(" ", $_);
+						
 						if (defined $data[0])
 						{
-							if ($date_check == 0) # Sprawdza datę bazy danych
+							# Pick up database creation date from the file
+							if ($date_check == 0)
 							{
 								for (my $i = 0; $i < scalar(@data); $i++)
 								{
-									my $check = 0;
-									foreach my $month (qw/Jan Feb Mar Apr May Jun Jul Aug Sept Oct Nov Dec/)
+									foreach my $month (qw/Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec/)
 									{
 										if ($month eq $data[$i])
 										{
-											$check = 1;
+											$enzymes_db{date} = "$data[$i] $data[$i + 1] $data[$i + 2]";
+											$date_check = 1;
 											last;
 										}
 									}
-									
-									if ($check == 1)
-									{
-										$enzymes_db{date} = "$data[$i] $data[$i + 1] $data[$i + 2]";
-										$date_check = 1;
-									}
 								}
 							}
-							elsif ($data[0] =~ /^[A-Z]$/ and $date_check == 1) # Zapisuje dane o producentach
+							
+							if ($data[0] =~ /^\.{2}$/) # Checks the presence of double dots indicating the beginning of enzymes data
+							{
+								$enzymes_begin = 1;
+								$date_check = 1;
+							}
+							elsif ($data[0] =~ /^[A-Z]$/) # Picks up data about commercial sources of enzymes
 							{
 								my $ID = $data[0];
 								my $company_name = "";
@@ -2573,7 +2585,7 @@ sub work
 								#$enzymes_db{companies}{$ID} = $company_name;
 								$enzymes_db{companies} = join("\t",@id_vs_companyName);
 							}
-							elsif ($data[0] =~ /[A-Z][a-z]{2}/ and $date_check == 1)
+							elsif ($data[0] =~ /[A-Z][a-z]{2}/ and $enzymes_begin == 1) # Picks up data about enzymes
 							{
 								$data[0] =~ s/;//;
 								my $raw_seq = $data[2];
@@ -2619,16 +2631,16 @@ sub work
 								
 								$data[2] = uc $data[2];
 								push @enzymes_tmp, join("\t", $data[2],$data[0]);
-							}				
+							}
+							
 						}
 					}
 				close $fh;
 				
 
 				
-				if ($date_check == 0) { $enzymes_err = 1 }
 				
-				if ($enzymes_err == 0)
+				if ($db_OK == 1)
 				{
 					foreach my $enzyme (@enzymes_tmp)
 					{
@@ -2661,8 +2673,8 @@ sub work
 			
 				}
 				###################
-				if ($enzymes_exists == 1 and $enzymes_err == 0) { @allEnzymesNames = sort{$a cmp $b} @allEnzymesNames; $enzyme_analysis_results[0] = 1 } # Jeżeli plik Enzymes istnieje ($enzymes_exists == 1) oraz nie ma żadnych błędów ($enzymes_err == 0), to drukowany jest 'OK'
-				elsif ($enzymes_exists == 1 and $enzymes_err == 1) { $enzyme_analysis_results[0] = 3 } # Jeżeli plik Enzymes istnieje ($enzymes_exists == 1), ale jest obecny w nim błąd ($enzymes_err == 1), to drukowany jest 'fail' oraz jego lokalizacja (nr linii)
+				if ($enzymes_exists == 1 and $db_OK == 1) { @allEnzymesNames = sort{$a cmp $b} @allEnzymesNames; $enzyme_analysis_results[0] = 1 } # Jeżeli plik Enzymes istnieje ($enzymes_exists == 1) oraz nie ma żadnych błędów ($enzymes_err == 0), to drukowany jest 'OK'
+				elsif ($enzymes_exists == 1 and $db_OK == 0) { $enzyme_analysis_results[0] = 3 } # Jeżeli plik Enzymes istnieje ($enzymes_exists == 1), ale jest obecny w nim błąd ($enzymes_err == 1), to drukowany jest 'fail' oraz jego lokalizacja (nr linii)
 				
 				
 				
