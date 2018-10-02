@@ -2223,7 +2223,7 @@ sub start_snp2caps
 							}
 							$terminal->insert('end', "$markersOnTheEdge_No_forReport", 'mark');
 							$terminal->insert('end', " SNPs/indels were located closer to the edges of the sequences than ");
-							$terminal->insert('end', "$snps_seq_len", 'mark');
+							$terminal->insert('end', "$output_seq_len", 'mark');
 							$terminal->insert('end', " bp:\n");
 							$terminal->insert('end', "The list of those SNPs/indels were saved in the ");
 							$terminal->insert('end', "log.txt", 'mark');
