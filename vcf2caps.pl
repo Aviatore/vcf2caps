@@ -10,7 +10,8 @@ use Tk::Pane;
 use Tk::ProgressBar;
 use LWP::Simple;
 use Data::Dumper;
-
+use Encode;
+use utf8;
 
 $|++;
 
@@ -1330,6 +1331,11 @@ sub new_working_directory
 {
 	my $working_dir_ref = $_[0];
 	$$working_dir_ref = $mw->chooseDirectory(-initialdir => '.', -title => 'Choose a working directory');
+	if ($^O eq 'MSWin32')
+	{
+		$$working_dir_ref = Encode::encode("windows-1252", $$working_dir_ref);
+	}
+
 	if (!defined $$working_dir_ref)
 	{
 		$terminal->insert('end', "No directory selected.\n\n");
@@ -1338,7 +1344,7 @@ sub new_working_directory
 	}
 	else
 	{
-		$terminal->insert('end', "Selected '");
+		$terminal->insert('end', "Selected '");		
 		$terminal->insert('end', "$$working_dir_ref", 'mark');
 		$terminal->insert('end', "' as a working directory.\n\n");
 		$terminal->see('end');
