@@ -1050,7 +1050,7 @@ $raw_vcf_analyze_button = $L_upper_4_3_frame->Button(
 		elsif (defined $raw_vcf_file_name and -e $raw_vcf_file_name and $jobID > 0)
 		{
 			$terminal->insert('end', "Warning", 'warning');
-			$terminal->insert('end', " - the .\n");
+			$terminal->insert('end', " - please, wait until the current running process is finished.\n");
 			$terminal->see('end');
 		}
 		elsif (defined $raw_vcf_file_name and -e $raw_vcf_file_name and $reference_analysis_results[0] == 0)
@@ -1109,13 +1109,13 @@ $vcf_analyze_button = $L_upper_5_3_frame->Button(
 			elsif (defined $vcf_file_name and -e $vcf_file_name and $jobID > 0 and $reference_analysis_results[0] == 1)
 			{
 				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - the .\n");
+				$terminal->insert('end', " - please, wait until the current running process is finished.\n");
 				$terminal->see('end');
 			}
 			elsif (defined $vcf_file_name and -e $vcf_file_name and $reference_analysis_results[0] == 0)
 			{
 				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - before parsing VCF file, the reference file must first be loaded.\n\n");
+				$terminal->insert('end', " - before parsing sVCF file, the reference file must first be loaded.\n\n");
 				$terminal->see('end');
 			}
 			elsif (defined $vcf_file_name and !-e $vcf_file_name)
