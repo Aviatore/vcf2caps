@@ -1285,6 +1285,10 @@ $terminal->insert('end', "vcf2CAPS v2.0\n\n");
 $terminal->insert('end', "Welcome ...\n\n");
 
 
+
+MainLoop;
+
+# The function to download the enzyme database file.
 sub download_enzyme_db
 {
 	$terminal->insert('end', "Downloading the database from ");
@@ -1327,6 +1331,7 @@ sub download_enzyme_db
 	}
 }
 
+# The function to chose a new working directory.
 sub new_working_directory
 {
 	my $working_dir_ref = $_[0];
@@ -1353,6 +1358,7 @@ sub new_working_directory
 	
 }
 
+#The function to save a chosen enzymes list to the text file.
 sub fileDialog_save_enzyme
 {
 	my $w = shift;
@@ -1400,6 +1406,7 @@ sub fileDialog_save_enzyme
 	}
 }
 
+# The function to retrieve a path to the file containing custom enzyme names.
 sub fileDialog_load_enzyme {
 	my $w = shift;
 	my $file;
@@ -1523,6 +1530,7 @@ sub fileDialog_load_enzyme {
 	}
 }
 
+# The function openes a hyperlink in a default webbrowser.
 sub open_hyperlink
 {
 	my $url = shift;
@@ -1534,6 +1542,7 @@ sub open_hyperlink
 	if (defined $cmd) { system($cmd) }
 }
 
+# The function writes custom messages to the file 'log.txt'.
 sub LOG
 {
 	my $text = $_[0];
@@ -1559,10 +1568,7 @@ sub LOG
 	close $Ofh;
 }
 
-MainLoop;
-
-
-
+# The function that triggers and checks the progress of enzyme database file checking step.
 sub start_enzymes_check
 {
 	if (defined $enzyme_file_name and -e $enzyme_file_name)
@@ -1646,6 +1652,7 @@ sub start_enzymes_check
 	
 }
 
+# The function that triggers and checks the progress of reference file checking step.
 sub start_reference_check
 {
 	if (defined $reference_file_name and -e $reference_file_name)
@@ -1734,6 +1741,7 @@ sub start_reference_check
 	}
 }
 
+# The function that triggers and checks the progress of VCF to sVCF file convertion step.
 sub raw_start_vcf_check
 {
 	$raw_vcf_analysis_results{err_code} = 0;
@@ -1750,9 +1758,9 @@ sub raw_start_vcf_check
 	
 	if (-e $raw_vcf_tmp) { unlink $raw_vcf_tmp }
 	
-	$terminal->insert('end', "Start raw VCF file '");
+	$terminal->insert('end', "Start VCF file '");
 	$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
-	$terminal->insert('end', "' convertion to the simplified form ...\n\n");
+	$terminal->insert('end', "' convertion to sVCF file format ...\n\n");
 	$terminal->see('end');
 	
 	$repeat = $mw->repeat( 100 => sub {
@@ -1766,7 +1774,7 @@ sub raw_start_vcf_check
 				
 				$terminal->insert('end', "Convertion of the VCF file '");
 				$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
-				$terminal->insert('end', "' completed. The simplified form was saved in: '");
+				$terminal->insert('end', "' completed. The sVCF file was saved in: '");
 				
 				$terminal->insert('end', "$working_dir" . "$raw_vcf_tmp", 'mark');
 				$terminal->insert('end', "'.\n\n");
@@ -1804,6 +1812,7 @@ sub raw_start_vcf_check
 	});
 }
 
+# The function that triggers and checks the progress of sVCF to 'snps.txt' file convertion step.
 sub start_vcf_check
 {
 	%vcf_analysis_results = ();
@@ -2001,6 +2010,8 @@ sub start_vcf_check
 						$line_vcf = 0;
 						$repeat2->cancel;
 						
+						$vcf_analyze_button->configure(-state => 'normal');
+						$vcf_chooseFile_button->configure(-state => 'normal');
 					}
 					#print "\$line_vcf: $line_vcf\t\$vcf_analysis_results{NoOfSNPs}: $vcf_analysis_results{NoOfSNPs}\n";
 					elsif ($line_vcf > 0 and $vcf_analysis_results{NoOfSNPs} > 0)
@@ -2034,17 +2045,18 @@ sub start_vcf_check
 				$terminal->insert('end', "#CHROM",'mark');
 				$terminal->insert('end', "'. Is it really sVCF file?\n\n");
 				$terminal->see('end');
+				
+				$vcf_analyze_button->configure(-state => 'normal');
+				$vcf_chooseFile_button->configure(-state => 'normal');
 			}
 			
-
-			$vcf_analyze_button->configure(-state => 'normal');
-			$vcf_chooseFile_button->configure(-state => 'normal');
 			$repeat->cancel;
 		}
 
 	} );
 }
 
+# The function that triggers and checks the progress of caps mining step.
 sub start_snp2caps
 {
 	$snp2caps_results[1] = 0;
@@ -2258,13 +2270,9 @@ sub start_snp2caps
 		}
 		
 	});
-	
-	
-	
-	
-	
 }
 
+# The function that triggers and checks the progress of single-cut filtration step.
 sub start_singleCutSite
 {
 	$jobID = 6;
@@ -2323,6 +2331,7 @@ sub start_singleCutSite
 	});
 }
 
+# The function to retrieve a path to a specific input file.
 sub fileDialog {
 	my $w = shift;
 	my $file_type = shift;
@@ -2402,7 +2411,7 @@ sub fileDialog {
 }
 
 
-
+# The main function that works in the background performing specific tasks depending on the value of variable $jobID.
 sub work
 {
 	while(1)
