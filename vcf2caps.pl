@@ -17,7 +17,7 @@ $|++;
 
 my $enzyme_file_name:shared;
 my $reference_file_name:shared;
-my $vcf_file_name:shared;
+my $sVCF_file_name:shared;
 my $raw_vcf_file_name:shared;
 my $die:shared = 0;
 my $die_confirm:shared = 0;
@@ -31,10 +31,10 @@ my @enzyme_analysis_results:shared = (0);
 my %vcf_analysis_results:shared = (err_code => 0);
 my %raw_vcf_analysis_results:shared = (err_code => 0);
 my @allEnzymesNames:shared;
-my @snp2caps_results:shared;
+my @caps_mining_results:shared;
 my @singleCutSite_results:shared;
 my $numberOfSNPs:shared = 0;
-my $fancy_SNPNo:shared = 0;
+my $actualSNPNo:shared = 0;
 my $capsMining_percent;
 my $singleCutSite_percent;
 my @linie:shared;
@@ -57,7 +57,7 @@ my $fh;
 my $out;
 my @selected_enz_names:shared = ();
 my $selected_enz_name;
-my @samtools_error_code:shared = ("",0);
+my @seqExtractor_error_code:shared = ("",0);
 
 my $enzyme_check;
 my $enzyme_check_status;
@@ -80,6 +80,7 @@ my $iso_state = 0;
 my $comp_state = 0;
 my $working_dir:shared = "";
 
+
 threads->create( \&work )->detach();
 
 my $mw = MainWindow->new();
@@ -89,19 +90,20 @@ $mw->minsize( qw(500 300) );
 my $L_center_col2_1_entry;
 my $L_center_col2_2_entry;
 
-##About START
+# >>> 'About' window constructors <<<
 $mw->fontCreate('title', -family => 'arial', -size => 12, -weight => 'bold');
 $mw->fontCreate('text', -family => 'arial', -size => 8);
 $mw->fontCreate('text_b', -family => 'arial', -size => 8, -weight => 'bold');
 $mw->fontCreate('hyper', -family => 'arial', -size => 8);
+
 my $about_window = $mw->Toplevel(-title => 'About vcf2caps');
 $about_window->resizable(0,0);
 my $about_text = $about_window->Text(-cursor => 'left_ptr', -width => 50, -height => 14, -insertwidth => 0, -insertontime => 0, -insertofftime => 0, -wrap => 'word', -background => 'gray95')->pack();
 $about_text->tagConfigure('title_center', -justify => 'center', -font => 'title');
 $about_text->tagConfigure('text_center', -justify => 'center', -font => 'text');
-$about_text->tagConfigure('hyperlink', -underline => 0, -font => 'hyper', -foreground => 'blue', -justify => 'center');
-$about_text->tagBind('hyperlink', '<Any-Enter>' => sub { $about_text->tagConfigure('hyperlink', -underline => 1, -font => 'hyper') } );
-$about_text->tagBind('hyperlink', '<Any-Leave>' => sub { $about_text->tagConfigure('hyperlink', -underline => 0, -font => 'hyper') } );
+$about_text->tagConfigure('hyperlink', -underline => 0, -font => 'text', -foreground => 'blue', -justify => 'center');
+$about_text->tagBind('hyperlink', '<Any-Enter>' => sub { $about_text->tagConfigure('hyperlink', -underline => 1, -font => 'text') } );
+$about_text->tagBind('hyperlink', '<Any-Leave>' => sub { $about_text->tagConfigure('hyperlink', -underline => 0, -font => 'text') } );
 $about_text->tagBind('hyperlink', '<Button-1>' => sub {
 	open_hyperlink("http://google.pl");
 } );
@@ -118,22 +120,16 @@ my $button_OK = $about_text->Button(-text => 'OK', -width => 10, -command => sub
 $about_text->windowCreate('text_center.last', -window => $button_OK, -align => 'center');
 $about_window->protocol('WM_DELETE_WINDOW' => sub { $about_window->withdraw } );
 $about_window->withdraw;
-##About END
 
-##Licence START
-my $licence_window = $mw->Toplevel(-title => 'About vcf2caps');
+
+# >>> 'Licence' window constructors <<<
+my $licence_window = $mw->Toplevel(-title => 'Licence');
 my $licence_text = $licence_window->Scrolled('Text', -scrollbars => 'e', -padx => 10, -pady => 10, -cursor => 'left_ptr', -width => 100, -height => 28, -insertwidth => 0, -insertontime => 0, -insertofftime => 0, -wrap => 'word', -background => 'gray95')->pack(-fill => 'both', -expand => 1);
 $licence_text->tagConfigure('title_center', -justify => 'center', -font => 'title');
 $licence_text->tagConfigure('title_left', -font => 'title');
 $licence_text->tagConfigure('title_left_s', -font => 'text_b');
 $licence_text->tagConfigure('text', -font => 'text');
 $licence_text->tagConfigure('text_center', -font => 'text', -justify => 'center');
-$licence_text->tagConfigure('hyperlink', -underline => 0, -font => 'hyper', -foreground => 'blue', -justify => 'center');
-$licence_text->tagBind('hyperlink', '<Any-Enter>' => sub { $licence_text->tagConfigure('hyperlink', -underline => 1, -font => 'hyper') } );
-$licence_text->tagBind('hyperlink', '<Any-Leave>' => sub { $licence_text->tagConfigure('hyperlink', -underline => 0, -font => 'hyper') } );
-$licence_text->tagBind('hyperlink', '<Button-1>' => sub {
-	open_hyperlink("http://google.pl");
-} );
 $licence_text->insert('end',"\n");
 $licence_text->insert('end',"GNU GENERAL PUBLIC LICENSE\n", 'title_center');
 $licence_text->insert('end',"Version 3, 29 June 2007\n\n", 'text_center');
@@ -357,9 +353,9 @@ my $button_OK_lic = $licence_text->Button(-text => 'Close', -width => 10, -comma
 $licence_text->windowCreate('text_center.last', -window => $button_OK_lic, -align => 'center');
 $licence_window->protocol('WM_DELETE_WINDOW' => sub { $licence_window->withdraw } );
 $licence_window->withdraw;
-##Licence END
 
-##Menu START
+
+# >>> Menu START <<<
 $mw->configure(-menu => my $menubar = $mw->Menu);
 my $file_menu = $menubar->cascade(-label => '~File');
 my $help_menu = $menubar->cascade(-label => '~Help');
@@ -368,6 +364,7 @@ my $new_working_directory = $file_menu->command(-label => 'New working directory
 my $download_db = $file_menu->command(-label => 'Download enzyme database', -underline => 0, -command => \&download_enzyme_db);
 my $save_selected_enzymes = $file_menu->command(-label => 'Save selected enzymes', -underline => 0, -command => sub { fileDialog_save_enzyme($mw) } );
 my $load_selected_enzymes = $file_menu->command(-label => 'Load selected enzymes', -underline => 0, -command => sub { fileDialog_load_enzyme($mw) });
+
 $file_menu->separator;
 $file_menu->command(-label => 'Exit', -underline => 0, -command => sub { exit });
 
@@ -375,13 +372,12 @@ my $licence = $help_menu->command(-label => 'Licence information', -underline =>
 my $about = $help_menu->command(-label => 'About vcf2caps', -underline => 0, -command => sub { $about_window->deiconify; $about_window->raise } );
 
 
-##Menu END
-
+# >>> Main window <<<
 my $folder_image = $mw->Photo(-file => 'icons/file_add.gif');
 my $analyze_image = $mw->Photo(-file => 'icons/analyze.gif');
 my $ok_image = $mw->Photo(-file => 'icons/ok.gif');
 my $fail_image = $mw->Photo(-file => 'icons/fail.gif');
-my $cancel = $mw->Photo(-file => 'icons/cancel.gif');
+my $cancel_image = $mw->Photo(-file => 'icons/cancel.gif');
 
 my $processing_gif = $mw->Animation(-format => 'gif', -file => 'icons/working.gif');
 
@@ -405,8 +401,6 @@ my $R_frame = $top->Frame->pack(
 	-padx => 20
 );
 #Scrolled
-my $R_frame_enzymeProperties_listBox;
-
 my $R_frame_allEnzymes_frame = $R_frame->Frame->pack(-side => 'left');
 my $R_frame_buttons_frame = $R_frame->Frame->pack(-side => 'left');
 my $R_frame_selEnzymes_frame = $R_frame->Frame->pack(-side => 'left');
@@ -956,7 +950,7 @@ $L_upper_1_2_frame->Label(-text => 'Selected file', -width => 23)->pack(-side =>
 my $enzyme_entry = $L_upper_2_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$enzyme_file_name)->pack(-side => 'top',-pady => 1.3);
 my $reference_entry = $L_upper_3_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$reference_file_name)->pack(-side => 'top',-pady => 1.3);
 my $raw_vcf_entry = $L_upper_4_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$raw_vcf_file_name)->pack(-side => 'top',-pady => 1.3);
-my $vcf_entry = $L_upper_5_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$vcf_file_name)->pack(-side => 'top',-pady => 1.3);
+my $vcf_entry = $L_upper_5_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$sVCF_file_name)->pack(-side => 'top',-pady => 1.3);
 
 
 
@@ -1098,27 +1092,27 @@ $vcf_analyze_button = $L_upper_5_3_frame->Button(
 			$L_center_col2_1_entry->configure(-background => 'white');
 			
 			
-			if (defined $vcf_file_name and -e $vcf_file_name and $jobID == 0 and $reference_analysis_results[0] == 1)
+			if (defined $sVCF_file_name and -e $sVCF_file_name and $jobID == 0 and $reference_analysis_results[0] == 1)
 			{
-				start_vcf_check();
+				start_sVCF_check();
 				$vcf_analyze_button->configure(-state => 'disabled');
 				$vcf_chooseFile_button->configure(-state => 'disabled');
 				$L_lower_col1_mining_button->configure(-state => 'disabled');
 				$L_lower_col2_mining_button->configure(-state => 'disabled');
 			}
-			elsif (defined $vcf_file_name and -e $vcf_file_name and $jobID > 0 and $reference_analysis_results[0] == 1)
+			elsif (defined $sVCF_file_name and -e $sVCF_file_name and $jobID > 0 and $reference_analysis_results[0] == 1)
 			{
 				$terminal->insert('end', "Warning", 'warning');
 				$terminal->insert('end', " - please, wait until the current running process is finished.\n");
 				$terminal->see('end');
 			}
-			elsif (defined $vcf_file_name and -e $vcf_file_name and $reference_analysis_results[0] == 0)
+			elsif (defined $sVCF_file_name and -e $sVCF_file_name and $reference_analysis_results[0] == 0)
 			{
 				$terminal->insert('end', "Warning", 'warning');
 				$terminal->insert('end', " - before parsing sVCF file, the reference file must first be loaded.\n\n");
 				$terminal->see('end');
 			}
-			elsif (defined $vcf_file_name and !-e $vcf_file_name)
+			elsif (defined $sVCF_file_name and !-e $sVCF_file_name)
 			{
 				$vcf_check->configure(-image => $fail_image);
 				#$vcf_check_status->configure(-text => "Error - the file does not exist");
@@ -1234,8 +1228,8 @@ $L_lower_col1_mining_button = $L_lower_row1_frame->Button(
 			{
 				$caps_singleCut_result_label->packForget; # Usuwa etykietę z wynikami po filtrowaniu single-cut
 				$L_lower_col1_mining_button->configure(-state => 'disabled');
-				$fancy_SNPNo = 0;
-				start_snp2caps();
+				$actualSNPNo = 0;
+				start_caps_mining();
 			}
 			elsif ( scalar(@selected_enz_names) == 0 )
 			{
@@ -1249,7 +1243,7 @@ $L_lower_col1_mining_button = $L_lower_row1_frame->Button(
 my $caps_mining_progress_frame = $L_lower_row1_frame->Frame;
 my $caps_mining_result_label = $L_lower_row1_frame->Label->pack(-side => 'left', -anchor => 'w');
 my $caps_mining_prepare_enzymes_label = $L_lower_row1_frame->Label();
-my $caps_mining_stop_button = $caps_mining_progress_frame->Button(-image => $cancel, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');;
+my $caps_mining_stop_button = $caps_mining_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');;
 my $L_lower_col1_mining_textFrame = $caps_mining_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
 my $progressBar = $L_lower_col1_mining_textFrame->ProgressBar(-variable => \$capsMining_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
 $L_lower_col1_mining_textFrame->windowCreate('end', -window => $progressBar);
@@ -1265,26 +1259,21 @@ $L_lower_col2_mining_button = $L_lower_row2_frame->Button(
 		{
 			$L_lower_col2_mining_button->configure(-state => 'disabled');
 			$numberOfSNPsBefore = 0;
-			start_singleCutSite();
+			start_singleCut_filter();
 		}
 	}
 )->pack(-side => 'left', -anchor => 'w');
 my $caps_singleCut_progress_frame = $L_lower_row2_frame->Frame;
 $caps_singleCut_result_label = $L_lower_row2_frame->Label->pack(-side => 'left', -anchor => 'w');
-my $caps_singleCut_stop_button = $caps_singleCut_progress_frame->Button(-image => $cancel, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');;
+my $caps_singleCut_stop_button = $caps_singleCut_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');;
 my $caps_singleCut_textFrame = $caps_singleCut_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
 my $singleCut_progressBar = $caps_singleCut_textFrame->ProgressBar(-variable => \$singleCutSite_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
 $caps_singleCut_textFrame->windowCreate('end', -window => $singleCut_progressBar);
 my $singleCut_progress_label = $caps_singleCut_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
 
-
-
-
 $terminal->pack(-padx => 5, -pady => 5, -fill => 'x');
 $terminal->insert('end', "vcf2CAPS v2.0\n\n");
 $terminal->insert('end', "Welcome ...\n\n");
-
-
 
 MainLoop;
 
@@ -1355,7 +1344,6 @@ sub new_working_directory
 		$terminal->see('end');
 		$$working_dir_ref = $$working_dir_ref . "/";
 	}
-	
 }
 
 #The function to save a chosen enzymes list to the text file.
@@ -1695,7 +1683,7 @@ sub start_reference_check
 					$terminal->insert('end', "' was created.\n\n");
 					$terminal->see('end');
 					
-					if ($samtools_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
+					if ($seqExtractor_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
 					{
 						$L_lower_col1_mining_button->configure(-state => 'normal');
 					}
@@ -1813,7 +1801,7 @@ sub raw_start_vcf_check
 }
 
 # The function that triggers and checks the progress of sVCF to 'snps.txt' file convertion step.
-sub start_vcf_check
+sub start_sVCF_check
 {
 	%vcf_analysis_results = ();
 	%vcf_analysis_results = (err_code => 0);
@@ -1822,10 +1810,10 @@ sub start_vcf_check
 	my $c = 0;
 	$vcf_check->configure(-image => $processing_gif);
 	$processing_gif->start_animation;
-	my $vcf_file_name_tmp = $vcf_file_name;
-	$vcf_file_name_tmp =~ s/.*[\\\/]//g;
-	$terminal->insert('end', "Start VCF file '");
-	$terminal->insert('end', "$vcf_file_name_tmp", 'mark');
+	my $sVCF_file_name_tmp = $sVCF_file_name;
+	$sVCF_file_name_tmp =~ s/.*[\\\/]//g;
+	$terminal->insert('end', "Start sVCF file '");
+	$terminal->insert('end', "$sVCF_file_name_tmp", 'mark');
 	$terminal->insert('end', "' integrity check ...\n\n");
 	$terminal->see('end');
 	my $next_step = 0;
@@ -1839,8 +1827,8 @@ sub start_vcf_check
 			#	$vcf_check->configure(-image => $ok_image);
 			#	$vcf_check_status->configure(-text => "OK - No. of individuals: $vcf_analysis_results{NoOfIndv}, No. of SNPs: $vcf_analysis_results{NoOfSNPs}");
 				
-				$terminal->insert('end', "Integrity check of the VCF file '");
-				$terminal->insert('end', "$vcf_file_name_tmp", 'mark',);
+				$terminal->insert('end', "Integrity check of the sVCF file '");
+				$terminal->insert('end', "$sVCF_file_name_tmp", 'mark',);
 				$terminal->insert('end', "' confirmed. Statistics:\n- number of individuals: ");
 				$terminal->insert('end', "$vcf_analysis_results{NoOfIndv}", 'mark');
 				$terminal->insert('end', "\n- number of SNPs/indels: ",);
@@ -1848,7 +1836,7 @@ sub start_vcf_check
 				$terminal->see('end');
 				
 				$terminal->insert('end', "Parsing the '");
-				$terminal->insert('end', "$vcf_file_name_tmp", 'mark');
+				$terminal->insert('end', "$sVCF_file_name_tmp", 'mark');
 				$terminal->insert('end', "' file ... ");
 				$terminal->insert('end', "0.0%", 'percent');
 				$terminal->see('end');
@@ -1860,9 +1848,9 @@ sub start_vcf_check
 				$percent_index_start = $terminal->search(-regexp, -backwards => '[0-9]+\.[0-9]%', 'end');
 				my $repeat2;
 				$repeat2 = $mw->repeat( 100 => sub {
-					if ($samtools_error_code[1] != 0)
+					if ($seqExtractor_error_code[1] != 0)
 					{
-						print "\$samtools_error_code[1]: $samtools_error_code[1]\n";
+						print "\$seqExtractor_error_code[1]: $seqExtractor_error_code[1]\n";
 					#	if (defined $percent_index_start)
 					#	{
 							my $percent = ( ($line_vcf - 1) / $vcf_analysis_results{NoOfSNPs}) * 100;
@@ -1874,8 +1862,8 @@ sub start_vcf_check
 						
 						$processing_gif->stop_animation;
 						
-						my $vcf_file_name_tmp = $vcf_file_name;
-						$vcf_file_name_tmp =~ s/.*[\\\/]//g;
+						my $sVCF_file_name_tmp = $sVCF_file_name;
+						$sVCF_file_name_tmp =~ s/.*[\\\/]//g;
 						my $reference_file_name_tmp = $reference_file_name;
 						$reference_file_name_tmp =~ s/.*[\\\/]//g;
 						
@@ -1884,19 +1872,19 @@ sub start_vcf_check
 						my $markersOnTheEdge_No = scalar(@markersOnTheEdge);
 						my $markersOnTheEdge_No_forReport = scalar(@markersOnTheEdge);
 						
-						if ($samtools_error_code[1] == 1 and $sequencesNotPresentInRef_No == 0 and $markersOnTheEdge_No == 0 )
+						if ($seqExtractor_error_code[1] == 1 and $sequencesNotPresentInRef_No == 0 and $markersOnTheEdge_No == 0 )
 						{
 							$vcf_check->configure(-image => $ok_image);
 							
 							$terminal->insert('end', "\n\nParsing finished sucessfully.\n\n");
 							$terminal->see('end');
 							
-							if ($samtools_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
+							if ($seqExtractor_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
 							{
 								$L_lower_col1_mining_button->configure(-state => 'normal');
 							}
 						}
-						elsif ($samtools_error_code[1] == 1 and $snpsNo > 0 and ($sequencesNotPresentInRef_No > 0 or $markersOnTheEdge_No > 0) )
+						elsif ($seqExtractor_error_code[1] == 1 and $snpsNo > 0 and ($sequencesNotPresentInRef_No > 0 or $markersOnTheEdge_No > 0) )
 						{
 							
 						
@@ -1932,7 +1920,7 @@ sub start_vcf_check
 								}
 								else
 								{
-									LOG("\n# VCF to sVCF conversion");
+									LOG("\n# Parsing sVCF file");
 									LOG("# SNPs/indels located in the sequences not present in the reference file $reference_file_name_tmp");
 									foreach my $text (@sequencesNotPresentInRef)
 									{
@@ -1966,7 +1954,7 @@ sub start_vcf_check
 								}
 								else
 								{
-									LOG("\n# VCF to sVCF conversion");
+									LOG("\n# Parsing sVCF file");
 									LOG("# SNPs/indels located closer to the edges of the sequences than 40 bp");
 									foreach my $text (@markersOnTheEdge)
 									{
@@ -1986,7 +1974,7 @@ sub start_vcf_check
 							$terminal->insert('end', "\n");
 							$terminal->see('end');
 							
-							if ($samtools_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
+							if ($seqExtractor_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
 							{
 								$L_lower_col1_mining_button->configure(-state => 'normal');
 							}	
@@ -1997,8 +1985,8 @@ sub start_vcf_check
 							
 							$terminal->insert('end', "\n\n");
 							$terminal->insert('end', "Warning",'warning');
-							$terminal->insert('end', " - parsing failed. Something went horribly wrong. Please, check the VCF file '");
-							$terminal->insert('end', "$vcf_file_name_tmp",'mark');
+							$terminal->insert('end', " - parsing failed. Something went horribly wrong. Please, check the sVCF file '");
+							$terminal->insert('end', "$sVCF_file_name_tmp",'mark');
 							$terminal->insert('end', "' for any issues with the file format.\n\n");
 							$terminal->see('end');
 						}
@@ -2006,7 +1994,7 @@ sub start_vcf_check
 				#		$vcf_analyze_button->configure(-state => 'normal');
 				#		$vcf_chooseFile_button->configure(-state => 'normal');
 						
-						$samtools_error_code[1] = 0;
+						$seqExtractor_error_code[1] = 0;
 						$line_vcf = 0;
 						$repeat2->cancel;
 						
@@ -2040,7 +2028,7 @@ sub start_vcf_check
 				
 				$terminal->insert('end', "Warning", 'warning');
 				$terminal->insert('end', " - the file '");
-				$terminal->insert('end', "$vcf_file_name_tmp", 'mark');
+				$terminal->insert('end', "$sVCF_file_name_tmp", 'mark');
 				$terminal->insert('end', "' does not have the header '");
 				$terminal->insert('end', "#CHROM",'mark');
 				$terminal->insert('end', "'. Is it really sVCF file?\n\n");
@@ -2057,9 +2045,9 @@ sub start_vcf_check
 }
 
 # The function that triggers and checks the progress of caps mining step.
-sub start_snp2caps
+sub start_caps_mining
 {
-	$snp2caps_results[1] = 0;
+	$caps_mining_results[1] = 0;
 	$jobID = 5;
 	$L_lower_col2_mining_button->configure(-state => 'disabled');
 	$capsMining_percent = 0;
@@ -2084,7 +2072,7 @@ sub start_snp2caps
 			$caps_mining_prepare_enzymes_label->configure(-text => sprintf ("Preparing enzymes list   %.1f%%", $capsMining_percent) );
 			$caps_mining_prepare_enzymes_label->packForget;
 			$capsMining_percent = 0;
-			$caps_mining_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $fancy_SNPNo,$vcf_analysis_results{NoOfSNPs},$capsMining_percent) );
+			$caps_mining_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $actualSNPNo,$vcf_analysis_results{NoOfSNPs},$capsMining_percent) );
 			$caps_mining_progress_frame->pack(-side => 'left', -anchor => 'w', -padx => 5);
 			
 			
@@ -2095,7 +2083,7 @@ sub start_snp2caps
 				
 				
 				
-				if ($snp2caps_results[1] != 0)
+				if ($caps_mining_results[1] != 0)
 				{
 					
 					
@@ -2104,7 +2092,7 @@ sub start_snp2caps
 					my $markersOnTheEdge_No = scalar(@markersOnTheEdge);
 					my $markersOnTheEdge_No_forReport = scalar(@markersOnTheEdge);
 					
-					if ($snp2caps_results[1] == 1 and $markersOnTheEdge_No == 0)
+					if ($caps_mining_results[1] == 1 and $markersOnTheEdge_No == 0)
 					{
 						$caps_mining_progress_frame->packForget;
 						my $numberOfSNPs_tmp = $numberOfSNPs;
@@ -2121,7 +2109,7 @@ sub start_snp2caps
 						
 						$L_lower_col2_mining_button->configure(-state => 'normal');
 					}
-					elsif ($snp2caps_results[1] == 1 and $markersOnTheEdge_No > 0)
+					elsif ($caps_mining_results[1] == 1 and $markersOnTheEdge_No > 0)
 					{
 						$caps_mining_progress_frame->packForget;
 						my $numberOfSNPs_tmp = $numberOfSNPs;
@@ -2129,8 +2117,8 @@ sub start_snp2caps
 						$caps_mining_result_label->configure(-text => "$numberOfSNPs_tmp CAPS found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
 						
-						my $vcf_file_name_tmp = $vcf_file_name;
-						$vcf_file_name_tmp =~ s/.*[\\\/]//g;
+						my $sVCF_file_name_tmp = $sVCF_file_name;
+						$sVCF_file_name_tmp =~ s/.*[\\\/]//g;
 						
 						$terminal->insert('end', "Warning",'warning');
 						$terminal->insert('end', " - CAPS mining finished.");
@@ -2175,7 +2163,7 @@ sub start_snp2caps
 						
 						$L_lower_col2_mining_button->configure(-state => 'normal');
 					}
-					elsif ($snp2caps_results[1] == 2)
+					elsif ($caps_mining_results[1] == 2)
 					{
 						$caps_mining_progress_frame->packForget;
 						my $numberOfSNPs_tmp = $numberOfSNPs;
@@ -2193,7 +2181,7 @@ sub start_snp2caps
 						
 						$L_lower_col2_mining_button->configure(-state => 'normal');
 					}
-					elsif ($snp2caps_results[1] == 2 and $markersOnTheEdge_No > 0)
+					elsif ($caps_mining_results[1] == 2 and $markersOnTheEdge_No > 0)
 					{
 						$caps_mining_progress_frame->packForget;
 						my $numberOfSNPs_tmp = $numberOfSNPs;
@@ -2201,8 +2189,8 @@ sub start_snp2caps
 						$caps_mining_result_label->configure(-text => "$numberOfSNPs_tmp CAPS found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
 						
-						my $vcf_file_name_tmp = $vcf_file_name;
-						$vcf_file_name_tmp =~ s/.*[\\\/]//g;
+						my $sVCF_file_name_tmp = $sVCF_file_name;
+						$sVCF_file_name_tmp =~ s/.*[\\\/]//g;
 						$terminal->insert('end', "Warning", 'warning');
 						$terminal->insert('end', " - CAPS mining canceled.");
 						$terminal->insert('end', " $numberOfSNPs_tmp", 'mark');
@@ -2255,11 +2243,11 @@ sub start_snp2caps
 					
 					$repeat2->cancel;
 				}
-				elsif ($fancy_SNPNo > 0 and $vcf_analysis_results{NoOfSNPs} > 0)
+				elsif ($actualSNPNo > 0 and $vcf_analysis_results{NoOfSNPs} > 0)
 				{
-					$capsMining_percent = ( ($fancy_SNPNo) / $vcf_analysis_results{NoOfSNPs}) * 100;
+					$capsMining_percent = ( ($actualSNPNo) / $vcf_analysis_results{NoOfSNPs}) * 100;
 					
-					$caps_mining_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $fancy_SNPNo,$vcf_analysis_results{NoOfSNPs},$capsMining_percent) );
+					$caps_mining_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $actualSNPNo,$vcf_analysis_results{NoOfSNPs},$capsMining_percent) );
 
 					
 					#$terminal->insert("$percent_index_start", sprintf ("%.1f%%", $percent));
@@ -2273,7 +2261,7 @@ sub start_snp2caps
 }
 
 # The function that triggers and checks the progress of single-cut filtration step.
-sub start_singleCutSite
+sub start_singleCut_filter
 {
 	$jobID = 6;
 	$singleCutSite_percent = 0;
@@ -2410,8 +2398,9 @@ sub fileDialog {
 	#   }
 }
 
-
-# The main function that works in the background performing specific tasks depending on the value of variable $jobID.
+######################################################################################################################
+# The main function that works in the background performing specific tasks depending on the value of variable $jobID #
+######################################################################################################################
 sub work
 {
 	while(1)
@@ -2697,7 +2686,7 @@ sub work
 		}
 		elsif ($jobID == 3)
 		{
-			if (defined $vcf_file_name)
+			if (defined $sVCF_file_name)
 			{
 				$line = 0;
 				my $vcf_NoOfLines;
@@ -2706,10 +2695,10 @@ sub work
 				@linie = ();
 				my $linie_ile = 0;
 				
-				if (-e $vcf_file_name) # Jeżeli plik VCF istnieje ...
+				if (-e $sVCF_file_name) # Jeżeli plik VCF istnieje ...
 				{
 					$vcf_exists = 1;
-					open my $check_vcf, '<', "$vcf_file_name";
+					open my $check_vcf, '<', "$sVCF_file_name";
 						my $checkLine = 0;
 						
 
@@ -2751,20 +2740,20 @@ sub work
 		elsif ($jobID == 4)
 		{
 			print "vcf2snps start\n";
-			@samtools_error_code = (vcf2snps($snps_seq_len,$reference_file_name));
+			@seqExtractor_error_code = (vcf2snps($snps_seq_len,$reference_file_name));
 			
 			$jobID = 0;
 		}
 		elsif ($jobID == 5)
 		{
-			print "snp2caps start\n";
-			@snp2caps_results = ( snp2caps($output_seq_len,$reference_file_name) );
+			print "Start CAPS mining\n";
+			@caps_mining_results = ( caps_miner($output_seq_len,$reference_file_name) );
 			
 			$jobID = 0;
 		}
 		elsif ($jobID == 6)
 		{
-			print "singleCutSite start\n";
+			print "Start single-cut filter\n";
 			@singleCutSite_results = ( singleCutSite() );
 			
 			$jobID = 0;
@@ -2841,1009 +2830,995 @@ sub work
 		}
 		sleep 1;
 	}
+}
+
+# The function extracts genotypes and variant surrounding sequences on the basis of input files (sVCF and reference) and store them in 'snps.txt' file.
+sub vcf2snps
+{
+	print "vcf2snps start confirmed\n";
+	print "\$working_dir: $working_dir\n";
+	$seqExtractor_error_code[1] = 0;
+	my $genotypesLength = $_[0];
+	my $error = 0;
+#	my $line = 0;
+	$line_vcf = 0;
+	@sequencesNotPresentInRef = ();
+	$snpsNo = 0;
+	@markersOnTheEdge = (); # Tablica zawierająca nazwy markerów, które są bliżej któregokolwiek końca niż wartość zawarta w polu 'DNA sequence length ...'
 	
-	sub vcf2snps
-	{
-		print "vcf2snps start confirmed\n";
-		print "\$working_dir: $working_dir\n";
-		$samtools_error_code[1] = 0;
-		my $genotypesLength = $_[0];
-		my $error = 0;
-	#	my $line = 0;
-		$line_vcf = 0;
-		@sequencesNotPresentInRef = ();
-		$snpsNo = 0;
-		@markersOnTheEdge = (); # Tablica zawierająca nazwy markerów, które są bliżej któregokolwiek końca niż wartość zawarta w polu 'DNA sequence length ...'
-		
-		my $prefix = $_[1];
-		$prefix =~ s/\.[A-Za-z]+$//; # usunięcie suffixu '.fasta' lub '.fa' z nazwy pliku
-		my %chrom_offset = (); # hash w którym będzie zapisywany ID chromosomu oraz pozycja kursora (offset)
-		open $fh, '<', $prefix . ".index";
-			while (<$fh>)
-			{
-				chomp $_;
-				my @data = split("\t", $_);
-				$data[0] =~ s/>//;
-				$data[0] =~ s/ .+//g;
-				$chrom_offset{$data[0]} = [($data[1],$data[2],$data[3],$data[4])];
-			}
-		close $fh;
-		my $chrom_offset = \%chrom_offset;
-		
-		
-		if (-e "$working_dir" . "snps.txt") {unlink "$working_dir" . "snps.txt"}
-
-		open my $fh, '<', "$vcf_file_name";
-		open my $Ofh, '>>', "$working_dir" . "snps.txt";
-
-		while (my $bier = <$fh>)
+	my $prefix = $_[1];
+	$prefix =~ s/\.[A-Za-z]+$//; # usunięcie suffixu '.fasta' lub '.fa' z nazwy pliku
+	my %chrom_offset = (); # hash w którym będzie zapisywany ID chromosomu oraz pozycja kursora (offset)
+	open $fh, '<', $prefix . ".index";
+		while (<$fh>)
 		{
-			$line_vcf++;
+			chomp $_;
+			my @data = split("\t", $_);
+			$data[0] =~ s/>//;
+			$data[0] =~ s/ .+//g;
+			$chrom_offset{$data[0]} = [($data[1],$data[2],$data[3],$data[4])];
+		}
+	close $fh;
+	my $chrom_offset = \%chrom_offset;
+	
+	
+	if (-e "$working_dir" . "snps.txt") {unlink "$working_dir" . "snps.txt"}
 
-			chomp $bier;
-			my @input = (split("\t", $bier)); # Zapis do tablicy @input wartości poszczególnych kolumn aktualnie analizowanego wiersza
-			if ($input[0] eq "#CHROM") {next} # Jeżeli analizowana linia zawiera tekst '#CHROM', to jest ona pomijana
-			my $RefSnpLen = scalar(split("", $input[2])); # Zapis do zmiennej długości sekwencji allelu SNPu z referencji
-			my $ref_snp = $input[2]; # scalar zawierający SNP w sekwencji referencyjnej
-			my $AltSnp = $input[3]; # Zapis do zmiennej $AltSnp wartości obecnej w 4 kolumnie zawierającej sekwencje wszystkiech alternatywnych alleli SNPu zamknięte w nawiasie kwadratowycm
-			$AltSnp =~ s/[\[\]]//g; # Usunięcie ze zmiennej $AltSnp (zawierającej sekwencje wszystkiech alternatywnych alleli SNPu) nawiasów kwadratowych
-			my @AltSnp = split(",", $AltSnp); # Zapis do tablicy @AltSnp sekwencji wszystkich alternatywnych alleli SNPu
-			
-			
-			my $from = $input[1] - $genotypesLength; # Zapis do zmiennej $from numeru nukleotydu od którego będzie rozpoczynała się ekstrachowana sekwencja
-			my $snp_min = $input[1] - 1; # Do zmiennej $snp_min zapisywana jest lokalizacja nukleotydu znajdującego się tuż przed SNP'em
-			my $to = $input[1] + $genotypesLength + $RefSnpLen - 1; # Zapis do zmiennej $to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $RefSnpLen zawiera informację o długości SNP'u referencji
-			my $RefSnp_plus = $input[1] + $RefSnpLen; # Do zmiennej $RefSnp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $RefSnpLen zawiera informację o długości SNP'u referencji
-			
-			if (!$chrom_offset->{$input[0]})
-			{
-				push @sequencesNotPresentInRef, ">" . $input[0];
-				next;
-			}
-			elsif ($from < 0 or $to > $chrom_offset->{$input[0]}[3])
-			{
-				push @markersOnTheEdge, ">" . $input[0] . ":" . $input[1];
-				next;
-			}
-			
-			
-			foreach my $snp (@AltSnp)
-			{
-				$snp =~ s/\s//g;
-			}		
-			
-			my $AltSnpNo = @AltSnp; # Zapis do zmiennej $AltSnpNo liczby alternatywnych alleli SNPu
-			
-			my @AltSnpLen = (); # tablica zawiera długości wszystkich alternatywnych wersji SNPów
-			for (my $i = 0; $i < $AltSnpNo; $i++) # Każdy allelu SNPu ...
-			{
-				push @AltSnpLen, scalar(split("", $AltSnp[$i])); # ... jest dodawany do tablicy @AltSnpLen
-			}
+	open my $fh, '<', "$sVCF_file_name";
+	open my $Ofh, '>>', "$working_dir" . "snps.txt";
 
-			
-			
+	while (my $bier = <$fh>)
+	{
+		$line_vcf++;
 
-			
-			
-			
-			
-			my @genotypes = (); # Tablica zawierająca kody genotypów
-			
-			for (my $i = 4; $i < scalar(@input); $i++) # Dla każdej rośliny ...
-			{
-				if ( ( split("/", $input[$i]) )[0] eq "\." )
-				{
-					push @genotypes, $input[$i];
-				}
-				else
-				{
-					if ( ( split("/", $input[$i]) )[0] <= ( split("/", $input[$i]) )[1] ) # ... sprawdza, czy wartości liczbowe alleli w genotypie są ustawione w kolejności wzrastającej, tj. jeżeli np. genotyp jest równy 1/2, to ...
-					{
-						push @genotypes, $input[$i]; # ... do tablicy @geontypes dodawany jest dany genotyp
-					}
-					else # Jeżeli wartości liczbowe alleli w genotypie są ustawione w kolejności maljeącej, tj. jeżeli np. genotyp jest równy 2/1, to ...
-					{
-						push @genotypes, ( split("/", $input[$i]) )[1] . "/" . ( split("/", $input[$i]) )[0]; # ... do tablicy @geontypes dodawany jest dany genotyp o odwrotnej kolejności alleli, tj. 2/1 (przed) -> 1/2 (po)
-					}
-				}
-				
-				
-			}
-			
-
-			my @samtoolsOut = samtools($reference_file_name,"$input[0]:$from-$snp_min",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'lewej' strony) z referencji
-
-
-				
-				
-				
-			print $Ofh ">$input[0]:$input[1]\n"; # Zapis identyfikatora SNPu do pliku wyjściowego 'out.txt'
-			print $Ofh join("\t",@genotypes)."\n"; # Zapis genotypu każdej linii do pliku wyjściowego 'out.txt'
-			
-			my $extracted_sequence = $samtoolsOut[0];
+		chomp $bier;
+		my @input = (split("\t", $bier)); # Zapis do tablicy @input wartości poszczególnych kolumn aktualnie analizowanego wiersza
+		if ($input[0] eq "#CHROM") {next} # Jeżeli analizowana linia zawiera tekst '#CHROM', to jest ona pomijana
+		my $RefSnpLen = scalar(split("", $input[2])); # Zapis do zmiennej długości sekwencji allelu SNPu z referencji
+		my $ref_snp = $input[2]; # scalar zawierający SNP w sekwencji referencyjnej
+		my $AltSnp = $input[3]; # Zapis do zmiennej $AltSnp wartości obecnej w 4 kolumnie zawierającej sekwencje wszystkiech alternatywnych alleli SNPu zamknięte w nawiasie kwadratowycm
+		$AltSnp =~ s/[\[\]]//g; # Usunięcie ze zmiennej $AltSnp (zawierającej sekwencje wszystkiech alternatywnych alleli SNPu) nawiasów kwadratowych
+		my @AltSnp = split(",", $AltSnp); # Zapis do tablicy @AltSnp sekwencji wszystkich alternatywnych alleli SNPu
 		
 		
+		my $from = $input[1] - $genotypesLength; # Zapis do zmiennej $from numeru nukleotydu od którego będzie rozpoczynała się ekstrachowana sekwencja
+		my $snp_min = $input[1] - 1; # Do zmiennej $snp_min zapisywana jest lokalizacja nukleotydu znajdującego się tuż przed SNP'em
+		my $to = $input[1] + $genotypesLength + $RefSnpLen - 1; # Zapis do zmiennej $to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $RefSnpLen zawiera informację o długości SNP'u referencji
+		my $RefSnp_plus = $input[1] + $RefSnpLen; # Do zmiennej $RefSnp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $RefSnpLen zawiera informację o długości SNP'u referencji
+		
+		if (!$chrom_offset->{$input[0]})
+		{
+			push @sequencesNotPresentInRef, ">" . $input[0];
+			next;
+		}
+		elsif ($from < 0 or $to > $chrom_offset->{$input[0]}[3])
+		{
+			push @markersOnTheEdge, ">" . $input[0] . ":" . $input[1];
+			next;
+		}
+		
+		
+		foreach my $snp (@AltSnp)
+		{
+			$snp =~ s/\s//g;
+		}		
+		
+		my $AltSnpNo = @AltSnp; # Zapis do zmiennej $AltSnpNo liczby alternatywnych alleli SNPu
+		
+		my @AltSnpLen = (); # tablica zawiera długości wszystkich alternatywnych wersji SNPów
+		for (my $i = 0; $i < $AltSnpNo; $i++) # Każdy allelu SNPu ...
+		{
+			push @AltSnpLen, scalar(split("", $AltSnp[$i])); # ... jest dodawany do tablicy @AltSnpLen
+		}
 
-			print $Ofh "$ref_snp,$RefSnpLen,$extracted_sequence$ref_snp"; # po wydrukowaniu 'lewej' części sekwencji SNPu drukuje sam SNP;
+		my @genotypes = (); # Tablica zawierająca kody genotypów
+		
+		for (my $i = 4; $i < scalar(@input); $i++) # Dla każdej rośliny ...
+		{
+			if ( ( split("/", $input[$i]) )[0] eq "\." )
+			{
+				push @genotypes, $input[$i];
+			}
+			else
+			{
+				if ( ( split("/", $input[$i]) )[0] <= ( split("/", $input[$i]) )[1] ) # ... sprawdza, czy wartości liczbowe alleli w genotypie są ustawione w kolejności wzrastającej, tj. jeżeli np. genotyp jest równy 1/2, to ...
+				{
+					push @genotypes, $input[$i]; # ... do tablicy @geontypes dodawany jest dany genotyp
+				}
+				else # Jeżeli wartości liczbowe alleli w genotypie są ustawione w kolejności maljeącej, tj. jeżeli np. genotyp jest równy 2/1, to ...
+				{
+					push @genotypes, ( split("/", $input[$i]) )[1] . "/" . ( split("/", $input[$i]) )[0]; # ... do tablicy @geontypes dodawany jest dany genotyp o odwrotnej kolejności alleli, tj. 2/1 (przed) -> 1/2 (po)
+				}
+			}			
+		}		
+
+		my @seqExtractorOut = seqExtractor($reference_file_name,"$input[0]:$from-$snp_min",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'lewej' strony) z referencji
+	
+		print $Ofh ">$input[0]:$input[1]\n"; # Zapis identyfikatora SNPu do pliku wyjściowego 'out.txt'
+		print $Ofh join("\t",@genotypes)."\n"; # Zapis genotypu każdej linii do pliku wyjściowego 'out.txt'
+		
+		my $extracted_sequence = $seqExtractorOut[0];	
+
+		print $Ofh "$ref_snp,$RefSnpLen,$extracted_sequence$ref_snp"; # po wydrukowaniu 'lewej' części sekwencji SNPu drukuje sam SNP;
+		
+		@seqExtractorOut = seqExtractor($reference_file_name,"$input[0]:$RefSnp_plus-$to",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'prawej' strony) z referencji
+		
+		$extracted_sequence = $seqExtractorOut[0];
+
+		print $Ofh "$extracted_sequence";
+
+		for (my $i = 0; $i < $AltSnpNo; $i++) # Dla każdego allelu SNPu ...
+		{
+			my $AltSnp_plus = $input[1] + $AltSnpLen[$i]; # ... do zmiennej $AltSnp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $AltSnpLen[$i] zawiera informację o długości danego allelu SNP'u
+			$to = $input[1] + $genotypesLength + $AltSnpLen[$i] - 1; # Zapis do zmiennej $to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $AltSnpLen[$i] zawiera informację o długości danego allelu SNP'u
 			
-			@samtoolsOut = samtools($reference_file_name,"$input[0]:$RefSnp_plus-$to",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'prawej' strony) z referencji
+			@seqExtractorOut = seqExtractor($reference_file_name,"$input[0]:$from-$snp_min",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'lewej' strony) z referencji
 			
-			$extracted_sequence = $samtoolsOut[0];
+			$extracted_sequence = $seqExtractorOut[0];
+
+			print $Ofh "\t$AltSnp[$i],$AltSnpLen[$i],$extracted_sequence$AltSnp[$i]"; # po wydrukowaniu 'lewej' części sekwencji SNPu drukuje sam SNP;
+			
+			@seqExtractorOut = seqExtractor($reference_file_name,"$input[0]:$AltSnp_plus-$to",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'prawej' strony) z referencji
+		
+			$extracted_sequence = $seqExtractorOut[0];
 
 			print $Ofh "$extracted_sequence";
-
-			for (my $i = 0; $i < $AltSnpNo; $i++) # Dla każdego allelu SNPu ...
-			{
-				my $AltSnp_plus = $input[1] + $AltSnpLen[$i]; # ... do zmiennej $AltSnp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $AltSnpLen[$i] zawiera informację o długości danego allelu SNP'u
-				$to = $input[1] + $genotypesLength + $AltSnpLen[$i] - 1; # Zapis do zmiennej $to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $AltSnpLen[$i] zawiera informację o długości danego allelu SNP'u
-				
-				@samtoolsOut = samtools($reference_file_name,"$input[0]:$from-$snp_min",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'lewej' strony) z referencji
-				
-				$extracted_sequence = $samtoolsOut[0];
-
-				print $Ofh "\t$AltSnp[$i],$AltSnpLen[$i],$extracted_sequence$AltSnp[$i]"; # po wydrukowaniu 'lewej' części sekwencji SNPu drukuje sam SNP;
-				
-				@samtoolsOut = samtools($reference_file_name,"$input[0]:$AltSnp_plus-$to",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'prawej' strony) z referencji
-			
-				$extracted_sequence = $samtoolsOut[0];
-
-				print $Ofh "$extracted_sequence";
-			}
-			print $Ofh "\n";
-			
-			$snpsNo++;
-
 		}
-		print "vcf2snps finished\n";
-		return ("",1);
+		print $Ofh "\n";
+		
+		$snpsNo++;
+
 	}
+	print "vcf2snps finished\n";
+	return ("",1);
+}
+
+# The function searches restriction sites within sequences present in 'snps.txt' file.
+sub caps_miner
+{
+	my $seq_len = $_[0];
+	my $seqName;
+	my @genotypes;
+	my %genotypes;
+	my @seq;
+	$stop = 0;
+	@markersOnTheEdge = ();
 	
-	sub snp2caps # Funkcja indentyfikująca SNP'y w sekwencjach rozpoznawanych przez enzymy restrykcyjne
-	{
-		my $seq_len = $_[0];
-		my $seqName;
-		my @genotypes;
-		my %genotypes;
-		my @seq;
-		$stop = 0;
-		@markersOnTheEdge = ();
-		
-		$numberOfSNPs = 0;
-		my $linie_ile = scalar(@linie);
-		print "Analysing ...\n\n";
-		if (-e "$working_dir" . "out.txt") { unlink "$working_dir" . "out.txt" }
-		
-		$enzyme_zip = 0;
+	$numberOfSNPs = 0;
+	my $linie_ile = scalar(@linie);
+	print "Analysing ...\n\n";
+	if (-e "$working_dir" . "out.txt") { unlink "$working_dir" . "out.txt" }
+	
+	$enzyme_zip = 0;
 
-		my $prefix = $_[1];
-		$prefix =~ s/\.[A-Za-z]+$//; # usunięcie suffixu '.fasta' lub '.fa' z nazwy pliku
-		my %chrom_offset = (); # hash w którym będzie zapisywany ID chromosomu oraz pozycja kursora (offset)
-		open $fh, '<', $prefix . ".index"; # otwarcie pliku indeksu
-			while (<$fh>)
-			{
-				chomp $_;
-				my @data = split("\t", $_);
-				$data[0] =~ s/>//;
-				$data[0] =~ s/ .+//g;
-				$chrom_offset{$data[0]} = [($data[1],$data[2],$data[3],$data[4])];
-			}
-		close $fh;
-		my $chrom_offset = \%chrom_offset;
-		
-		my @selected_enz_names_tmp;
-		my %selected_enz_names_mix;
-		foreach my $enzyme_mix (keys %enzymes_for_analysis)
+	my $prefix = $_[1];
+	$prefix =~ s/\.[A-Za-z]+$//; # usunięcie suffixu '.fasta' lub '.fa' z nazwy pliku
+	my %chrom_offset = (); # hash w którym będzie zapisywany ID chromosomu oraz pozycja kursora (offset)
+	open $fh, '<', $prefix . ".index"; # otwarcie pliku indeksu
+		while (<$fh>)
 		{
-
-			L: foreach my $enzyme (@selected_enz_names)
-			{	
-				foreach my $single_enz ( split(",", $enzyme_mix) )
-				{
-					if ($single_enz eq $enzyme)
-					{
-						push @selected_enz_names_tmp, $enzyme;
-						$selected_enz_names_mix{$enzyme} = $enzyme_mix;
-						last L;
-					}
-				}
-				
-				
-			}
-			$enzyme_zip++;
+			chomp $_;
+			my @data = split("\t", $_);
+			$data[0] =~ s/>//;
+			$data[0] =~ s/ .+//g;
+			$chrom_offset{$data[0]} = [($data[1],$data[2],$data[3],$data[4])];
 		}
-		@selected_enz_names_tmp = uniq(@selected_enz_names_tmp);
+	close $fh;
+	my $chrom_offset = \%chrom_offset;
+	
+	my @selected_enz_names_tmp;
+	my %selected_enz_names_mix;
+	foreach my $enzyme_mix (keys %enzymes_for_analysis)
+	{
 
-		### UWAGA - rozważyć zastąpienie poniższej pętli zmienną $vcf_analysis_results{NoOfSNPs}
-		##10 Zapis do zmiennej $fancy_numberOfSNPs liczby wszystkich SNP'ów obecnych w pliku 'snps.txt'
-		open my $SNP, '<', "$working_dir" . "snps.txt"; # Otwarcie pliku 'snps.txt' (plik wsadowy powstały po przekształceniu pliku VCF)
-			my $fancy_numberOfSNPs = 0; # Zmienna przechowująca liczbę wszystkich SNP'ów obecnych w pliku 'snps.txt'
-			
-			while (my $fancy_snp = <$SNP>)
+		L: foreach my $enzyme (@selected_enz_names)
+		{	
+			foreach my $single_enz ( split(",", $enzyme_mix) )
 			{
-				chomp $fancy_snp;
-				if ($fancy_snp =~ /^>/) # Jeżeli linia rozpoczyna się od znaku zachęty '>', to ...
+				if ($single_enz eq $enzyme)
 				{
-					$fancy_numberOfSNPs++; # ... wartość zmiennej $fancy_numberOfSNPs jest zwiększana o 1
+					push @selected_enz_names_tmp, $enzyme;
+					$selected_enz_names_mix{$enzyme} = $enzyme_mix;
+					last L;
 				}
 			}
 			
-		close $SNP;
-		##10
+			
+		}
+		$enzyme_zip++;
+	}
+	@selected_enz_names_tmp = uniq(@selected_enz_names_tmp);
 
-		$fancy_SNPNo = 0; # Zmienna $fancy_SNPNo przechowuje nr aktualnie badanego SNP'u
-
+	### UWAGA - rozważyć zastąpienie poniższej pętli zmienną $vcf_analysis_results{NoOfSNPs}
+	##10 Zapis do zmiennej $numberOfAllSNPs liczby wszystkich SNP'ów obecnych w pliku 'snps.txt'
+	open my $SNP, '<', "$working_dir" . "snps.txt"; # Otwarcie pliku 'snps.txt' (plik wsadowy powstały po przekształceniu pliku VCF)
+		my $numberOfAllSNPs = 0; # Zmienna przechowująca liczbę wszystkich SNP'ów obecnych w pliku 'snps.txt'
 		
-		open $SNP, '<', "$working_dir" . "snps.txt"; # Otwarcie pliku 'snps.txt' (plik wsadowy powstały po przekształceniu pliku VCF)
-		while (my $bierSNP = <$SNP>)
+		while (my $fancy_snp = <$SNP>)
 		{
-			if ($stop == 1) { return ($numberOfSNPs,2) }
-			
-			chomp $bierSNP;
-
-			my $IndvSeq = []; # Tablica zawierająca w każdej pozycji tablice z indywidualnymi nukleotydami fragmentu DNA z daną wersją alleliczną analizowanego SNP'u
-			my @IndvSeq_snpLen_snp = (); # Tablica zawierająca długości każdej wersji allelicznej analizowanego SNP'u
-			my @IndvSeq_snp = (); # Tablica zawierająca sekwencję każdej wersji allelicznej analizowanego SNP'u
-			
-			if ($bierSNP =~ />/) # Jeżeli linia rozpoczyna się od znaku zachęty '>', to ...
+			chomp $fancy_snp;
+			if ($fancy_snp =~ /^>/) # Jeżeli linia rozpoczyna się od znaku zachęty '>', to ...
 			{
-				$seqName = $bierSNP; # ... zmiennej $seqName przyporządkowana jest wartość zmiennej $bierSNP przechowująca nazwę SNPu oraz ...
-				$fancy_SNPNo++; # ... wartość zmiennej $fancy_SNPNo (nr aktualnie badanego SNP'u) jest zwiększana o 1
+				$numberOfAllSNPs++; # ... wartość zmiennej $numberOfAllSNPs jest zwiększana o 1
 			}
-			elsif ($bierSNP =~ /^[0-9\.]/) # Jeżeli linia rozpoczyna się od liczby, to ...
-			{
-				@genotypes = split("\t",$bierSNP); # ... do tablicy @genotypes zapisywane są kody liczbowe poszczególnych genotypów
-				
-				for (my $i = 0; $i < scalar(@linie); $i++) # Nazwom poszczególnych linii przypisywana jest wartość genotypu danego SNP'u
-				{
-					$genotypes{$linie[$i]} = $genotypes[$i];
-				}
-			}
-			else # Jeżeli linia rozpoczyna się od sekencji SNP'u, to ...
-			{
-				@seq = split("\t",$bierSNP); # Zapis do tablicy @seq sekwencji SNP'u, jego długości oraz fragmentu DNA zawierającego dany SNP dla referencji oraz alternatywnych wersji SNP'u (fragment DNA zaczerpnięty z referencji, zmieniony jedynie nukleotyd w miejscu występowania SNP'u)
-				my $SNP_alleles_No = @seq; # Zapis do zmiennej $SNP_alleles_No liczby alleli dango SNP'u
-				
-			#	my @enz = keys %enzymes_db; # Zapis do tablicy @enz nazw enzymów (dana pozycja może zawierać nazwę jednego lub większej liczby enzymów rozpoznających daną unikalną sekwencję DNA)
-			#	@enz = grep { $_ ne "date" } @enz;
-			#	@enz = grep { $_ ne "companies" } @enz;
-				
-				my $enz_No = @selected_enz_names_tmp; # Zapis do zmiennej $enz_No liczby unikalnych sekwencji rozpoznawanych przez enzymy
-			#	print "\$enz_No: $enz_No\n";
-			#	print join("\n", @selected_enz_names_tmp);
-				
-				
-				
-				for (my $i = 0; $i < $SNP_alleles_No; $i++) # Dla każdego allelu danego SNP'u ...
-				{
-					my @input = (split(",",$seq[$i])); # ... do tablicy @input zapisywane są następujące 3 dane: sekwencja danej wersji allelicznej SNP'u, długość SNP'u (danego allelu), fragment DNA ze SNP'em
-					push @IndvSeq_snpLen_snp, $input[1]; # Do tablicy @IndvSeq_snpLen_snp zapisywane są długości danej wersji allelu danego SNP'u
-					push @IndvSeq_snp, $input[0]; # Do tablicy @IndvSeq_snp zapisywana jest sekwencja danej wersji allelu danego SNP'u
-					my @IndvSeq_tmp = split("",$input[2]); # Do tablicy @IndvSeq_tmp są zapisywane pojedyncze nukleotydy sekwencji danej wersji allelu danego SNP'u, a następnie ...
-					push @$IndvSeq, [@IndvSeq_tmp]; # ... tablica ta jest zapisywana do tablicy zbiorczej @$IndvSeq
-				}
-				
-				
-				for (my $i = 0; $i < $enz_No; $i++) # Dla każdej unikalnej sekwencji rozpoznawanej przez enzymy restrykcyjne ...
-				{			
-					my $enzLength = split("", ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[1] ); # ... do zmiennej $enzLength zapisywana jest długość sekwencji rozpoznawanej przez enzym/enzymy
-					#print "\$enzLength: $enzLength\n";
-					$enzLength = $enzLength - 0; # ?
+		}
+		
+	close $SNP;
+	##10
 
-					my $cc = 0; # Zmienna $cc przechowująca kolejny nr wyekstrachowanego fragmentu DNA
-					my @partSeq = ([],[]); # Tablica dwuwymiarowa przechowująca wyekstrachowane fragmenty DNA dla każdej wersji allelicznej badanego SNP'u. $partSeq[ID wersji allelicznej SNP'u][ID fragmentu DNA]
-					my @partSeq_size = (); # ?
-					my $numberOfMatches = 0; # ?
-					my $numberOfMatches_all = 0; # ?
-					my %matches1; # Hash przechowujący liczbę rozpoznawanych sekwencji (value) zawierających analizowany SNP dla każdej wersji allelicznej (key) analizowanego SNP'u
-					my @partSeq1 = ""; # ?
+	$actualSNPNo = 0; # Zmienna $actualSNPNo przechowuje nr aktualnie badanego SNP'u
+
+	
+	open $SNP, '<', "$working_dir" . "snps.txt"; # Otwarcie pliku 'snps.txt' (plik wsadowy powstały po przekształceniu pliku VCF)
+	while (my $bierSNP = <$SNP>)
+	{
+		if ($stop == 1) { return ($numberOfSNPs,2) }
+		
+		chomp $bierSNP;
+
+		my $IndvSeq = []; # Tablica zawierająca w każdej pozycji tablice z indywidualnymi nukleotydami fragmentu DNA z daną wersją alleliczną analizowanego SNP'u
+		my @IndvSeq_snpLen_snp = (); # Tablica zawierająca długości każdej wersji allelicznej analizowanego SNP'u
+		my @IndvSeq_snp = (); # Tablica zawierająca sekwencję każdej wersji allelicznej analizowanego SNP'u
+		
+		if ($bierSNP =~ />/) # Jeżeli linia rozpoczyna się od znaku zachęty '>', to ...
+		{
+			$seqName = $bierSNP; # ... zmiennej $seqName przyporządkowana jest wartość zmiennej $bierSNP przechowująca nazwę SNPu oraz ...
+			$actualSNPNo++; # ... wartość zmiennej $actualSNPNo (nr aktualnie badanego SNP'u) jest zwiększana o 1
+		}
+		elsif ($bierSNP =~ /^[0-9\.]/) # Jeżeli linia rozpoczyna się od liczby, to ...
+		{
+			@genotypes = split("\t",$bierSNP); # ... do tablicy @genotypes zapisywane są kody liczbowe poszczególnych genotypów
+			
+			for (my $i = 0; $i < scalar(@linie); $i++) # Nazwom poszczególnych linii przypisywana jest wartość genotypu danego SNP'u
+			{
+				$genotypes{$linie[$i]} = $genotypes[$i];
+			}
+		}
+		else # Jeżeli linia rozpoczyna się od sekencji SNP'u, to ...
+		{
+			@seq = split("\t",$bierSNP); # Zapis do tablicy @seq sekwencji SNP'u, jego długości oraz fragmentu DNA zawierającego dany SNP dla referencji oraz alternatywnych wersji SNP'u (fragment DNA zaczerpnięty z referencji, zmieniony jedynie nukleotyd w miejscu występowania SNP'u)
+			my $SNP_alleles_No = @seq; # Zapis do zmiennej $SNP_alleles_No liczby alleli dango SNP'u
+			
+		#	my @enz = keys %enzymes_db; # Zapis do tablicy @enz nazw enzymów (dana pozycja może zawierać nazwę jednego lub większej liczby enzymów rozpoznających daną unikalną sekwencję DNA)
+		#	@enz = grep { $_ ne "date" } @enz;
+		#	@enz = grep { $_ ne "companies" } @enz;
+			
+			my $enz_No = @selected_enz_names_tmp; # Zapis do zmiennej $enz_No liczby unikalnych sekwencji rozpoznawanych przez enzymy
+		#	print "\$enz_No: $enz_No\n";
+		#	print join("\n", @selected_enz_names_tmp);
+			
+			
+			
+			for (my $i = 0; $i < $SNP_alleles_No; $i++) # Dla każdego allelu danego SNP'u ...
+			{
+				my @input = (split(",",$seq[$i])); # ... do tablicy @input zapisywane są następujące 3 dane: sekwencja danej wersji allelicznej SNP'u, długość SNP'u (danego allelu), fragment DNA ze SNP'em
+				push @IndvSeq_snpLen_snp, $input[1]; # Do tablicy @IndvSeq_snpLen_snp zapisywane są długości danej wersji allelu danego SNP'u
+				push @IndvSeq_snp, $input[0]; # Do tablicy @IndvSeq_snp zapisywana jest sekwencja danej wersji allelu danego SNP'u
+				my @IndvSeq_tmp = split("",$input[2]); # Do tablicy @IndvSeq_tmp są zapisywane pojedyncze nukleotydy sekwencji danej wersji allelu danego SNP'u, a następnie ...
+				push @$IndvSeq, [@IndvSeq_tmp]; # ... tablica ta jest zapisywana do tablicy zbiorczej @$IndvSeq
+			}
+			
+			
+			for (my $i = 0; $i < $enz_No; $i++) # Dla każdej unikalnej sekwencji rozpoznawanej przez enzymy restrykcyjne ...
+			{			
+				my $enzLength = split("", ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[1] ); # ... do zmiennej $enzLength zapisywana jest długość sekwencji rozpoznawanej przez enzym/enzymy
+				#print "\$enzLength: $enzLength\n";
+				$enzLength = $enzLength - 0; # ?
+
+				my $cc = 0; # Zmienna $cc przechowująca kolejny nr wyekstrachowanego fragmentu DNA
+				my @partSeq = ([],[]); # Tablica dwuwymiarowa przechowująca wyekstrachowane fragmenty DNA dla każdej wersji allelicznej badanego SNP'u. $partSeq[ID wersji allelicznej SNP'u][ID fragmentu DNA]
+				my @partSeq_size = (); # ?
+				my $numberOfMatches = 0; # ?
+				my $numberOfMatches_all = 0; # ?
+				my %matches1; # Hash przechowujący liczbę rozpoznawanych sekwencji (value) zawierających analizowany SNP dla każdej wersji allelicznej (key) analizowanego SNP'u
+				my @partSeq1 = ""; # ?
+				
+				my ($to, $count) = ($enzLength,0); # Zmiennej $to przypisywana jest wartość zmiennej $enzLength zawierająca informacje o długości unikalnej sekwencji rozpoznawanej przez enzym. Zmiennej $count (?) przypisywana jest wartość 0.
+				
+				for (my $seqID = 0; $seqID < $SNP_alleles_No; $seqID++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
+				{
+					$cc = 0; # ... resetowana (zerowana) jest zmienna $cc przechowująca kolejny nr wyekstrachowanego fragmentu DNA
+					my $IndvSeq_Len = (scalar(@{$IndvSeq->[$seqID]})); # Przypisanie zmiennej $IndvSeq_Len długości fragmentu DNA zawierającego daną wersję alleliczną. Zmienna $seqID zawiera ID każdej wersji (0 -> referencja, 1 -> ...)
+					my $from = int( ( ( $IndvSeq_Len - $IndvSeq_snpLen_snp[$seqID] ) + 1 ) / 2 ) - $enzLength; # Przypisanie zmiennej $from wartości, która w dalszej części programu jest wykorzystywana do obliczenia nr nukleotydu od którego mają być 'wycinane' fragmenty DNA o długości odpowiadającej długości sekwencji rozpoznawanej przez enzym i zawierających dany SNP
 					
-					my ($to, $count) = ($enzLength,0); # Zmiennej $to przypisywana jest wartość zmiennej $enzLength zawierająca informacje o długości unikalnej sekwencji rozpoznawanej przez enzym. Zmiennej $count (?) przypisywana jest wartość 0.
+
 					
-					for (my $seqID = 0; $seqID < $SNP_alleles_No; $seqID++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
+					##11 Ekstrakcja i zapis fragmentów DNA (do tablicy dwuwymiarowej $partSeq[ID danej wersji allelicznej][kolejny nr fragmentu]) o długości odpowiadającej długości sekwencji rozpoznawanej przez enzym i zawierających dany SNP
+					for (my $c = 1; $c < $enzLength + ($IndvSeq_snpLen_snp[$seqID]); $c++) # Pętla ta określa ile fragmentów sekwencji ma zostać wyekstrachowanych (długość rozpoznawanej sekwencji + długość SNP'u)
 					{
-						$cc = 0; # ... resetowana (zerowana) jest zmienna $cc przechowująca kolejny nr wyekstrachowanego fragmentu DNA
-						my $IndvSeq_Len = (scalar(@{$IndvSeq->[$seqID]})); # Przypisanie zmiennej $IndvSeq_Len długości fragmentu DNA zawierającego daną wersję alleliczną. Zmienna $seqID zawiera ID każdej wersji (0 -> referencja, 1 -> ...)
-						my $from = int( ( ( $IndvSeq_Len - $IndvSeq_snpLen_snp[$seqID] ) + 1 ) / 2 ) - $enzLength; # Przypisanie zmiennej $from wartości, która w dalszej części programu jest wykorzystywana do obliczenia nr nukleotydu od którego mają być 'wycinane' fragmenty DNA o długości odpowiadającej długości sekwencji rozpoznawanej przez enzym i zawierających dany SNP
-						
-
-						
-						##11 Ekstrakcja i zapis fragmentów DNA (do tablicy dwuwymiarowej $partSeq[ID danej wersji allelicznej][kolejny nr fragmentu]) o długości odpowiadającej długości sekwencji rozpoznawanej przez enzym i zawierających dany SNP
-						for (my $c = 1; $c < $enzLength + ($IndvSeq_snpLen_snp[$seqID]); $c++) # Pętla ta określa ile fragmentów sekwencji ma zostać wyekstrachowanych (długość rozpoznawanej sekwencji + długość SNP'u)
+						my @part = (); # Tablica przechowująca pojedyncze nukleotydy wyekstrachowanego fragmentu DNA
+					
+						for (my $ii = $from + $c; $ii < $from + $enzLength + $c; $ii++)
 						{
-							my @part = (); # Tablica przechowująca pojedyncze nukleotydy wyekstrachowanego fragmentu DNA
-						
-							for (my $ii = $from + $c; $ii < $from + $enzLength + $c; $ii++)
-							{
 
-								my $input = ${@$IndvSeq[$seqID]}[$ii]; # Wyłuskiwanie pojedynczych nukleotydów (poczynając od wybranego początkowego nukleotydu) danego fragmentu DNA zawierającego daną wersję alleliczną badanego SNP'u ($seqID) do tymczasowej zmiennej $input
-								push @part, $input; # Umieszczanie wyłuskanego nukleotydu w tablicy @part
-								
-							}
+							my $input = ${@$IndvSeq[$seqID]}[$ii]; # Wyłuskiwanie pojedynczych nukleotydów (poczynając od wybranego początkowego nukleotydu) danego fragmentu DNA zawierającego daną wersję alleliczną badanego SNP'u ($seqID) do tymczasowej zmiennej $input
+							push @part, $input; # Umieszczanie wyłuskanego nukleotydu w tablicy @part
 							
-							$partSeq[$seqID][$cc] = join("",@part); # Łączenie pojedynczych nukleotydów w tablicy @part, a następnie zapisywanie ich do tablicy dwuwymiarowej $partSeq ($partSeq[ID wersji allelicznej SNP'u][ID fragmentu DNA])
-							$cc++;
-												
 						}
 						
-
-						##11
-					}
-
-					##12 Zapis do tablicy @partSeq_size liczby wyekstrachowanych fragmentów DNA dla wszystkich wersji allelicznych danego SNP'u
-					for (my $i = 0; $i < $SNP_alleles_No; $i++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
-					{
-						my $input = @{$partSeq[$i]}; # ... do zmiennej $input przypisywana jest liczba wyekstrachowanych fragmentów DNA, a następnie ...
-						@partSeq_size = (@partSeq_size, $input); # ... wartość tej zmiennej jest dodawana do tablicy @partSeq_size
-					}
-					##12
-					my $enzyme_recogn_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[1];
-					$enzyme_recogn_seq = uc $enzyme_recogn_seq;
-					
-					my $enzREGEX = enzREGEX( $enzyme_recogn_seq ); # przypisanie zmiennej $enzREGEX wyniku działania funkcji enzREGEX(<sekwencja DNA>), która zwraca sekwencję DNA w formie REGEX
-					
-					my $regex_inv = regex_inv($enzREGEX);
-					if ($regex_inv eq $enzREGEX) # Sprawdzenie czy rozpoznawana przez testowany enzym sekwencja jest palindromem
-					{
-						##13 Określenie liczby wyekstrachowanych fragmentów DNA dla każdej wersji allelicznej analizowanego SNP'u, które są zrozpoznawane przez dany enzym restrykcyjny. Wartości te są zapisywane do hashu %matches1
-						for (my $c = 0; $c < $SNP_alleles_No; $c++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
-						{ 
-							for (my $i = 0; $i < $partSeq_size[$c]; $i++) # ... dla każdego wyekstrachowanego fragmentu DNA danej wersji allelicznej analizowanego SNP'u ...
-							{	
-								my $partSeq_upper = uc $partSeq[$c][$i];
-								if ($partSeq_upper =~ /$enzREGEX/) # ... porównywana jest zgodność sekwencji danego fragmentu DNA z sekencją (w formie REGEX) rozpoznawaną przez enzym. Jeżeli sekwencje są identyczne, to ...
-								{
-									#	print "Sek: $c, len:  $partSeq[$c][$i] == $enzREGEX\n"; ####################################
-									#	print "$enzyme_recogn_seq, $partSeq[$c][$i] == $enzREGEX\n";
-									
-									$numberOfMatches++; # ... wartość zmiennej $numberOfMatches (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla danej wersji allelicznej analizowanego SNP'u) powiększana jest o 1
-									$numberOfMatches_all++; # ... wartość zmiennej $numberOfMatches_all (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla wszystkich wersji allelicznych analizowanego SNP'u) powiększana jest o 1
-								}
-		#							else
-		#							{
-		#								print "Sek: $c $partSeq[$c][$i] :: $enzREGEX\n"; ####################################
-		#							}
-							}
-							$matches1{$c} = $numberOfMatches; # Do hashu %matches1 jest zapisywana liczba wyekstrachowanych fragmentów DNA ($numberOfMatches) dla każdej wersji allelicznej analizowanego SNP'u ($c), które są zrozpoznawane przez dany enzym restrykcyjny
-							$numberOfMatches = 0; # Zmienna $numberOfMatches jest zerwowana przed kolejnym cyklem pętli
-						}
-						##13
-					}
-					else # Jeżeli rozpoznawana sekwencja nie jest palindromem, to testowany fragment DNA jest badany pod kątem występowania sekwencji komplementarnej do rozpoznawanej przez enzym
-					{
-						##13 Określenie liczby wyekstrachowanych fragmentów DNA dla każdej wersji allelicznej analizowanego SNP'u, które są zrozpoznawane przez dany enzym restrykcyjny. Wartości te są zapisywane do hashu %matches1
-						for (my $c = 0; $c < $SNP_alleles_No; $c++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
-						{ 
-							for (my $i = 0; $i < $partSeq_size[$c]; $i++) # ... dla każdego wyekstrachowanego fragmentu DNA danej wersji allelicznej analizowanego SNP'u ...
-							{	
-								my $partSeq_upper = uc $partSeq[$c][$i];
-								if ($partSeq_upper =~ /$enzREGEX/ or $partSeq_upper =~ /$regex_inv/) # ... porównywana jest zgodność sekwencji danego fragmentu DNA z sekencją (w formie REGEX) rozpoznawaną przez enzym. Jeżeli sekwencje są identyczne, to ...
-								{
-									#	print "Sek: $c, len:  $partSeq[$c][$i] == $enzREGEX\n"; ####################################
-									#	print "$enzyme_recogn_seq, $partSeq[$c][$i] == $enzREGEX\n";
-									
-									$numberOfMatches++; # ... wartość zmiennej $numberOfMatches (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla danej wersji allelicznej analizowanego SNP'u) powiększana jest o 1
-									$numberOfMatches_all++; # ... wartość zmiennej $numberOfMatches_all (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla wszystkich wersji allelicznych analizowanego SNP'u) powiększana jest o 1
-								}
-		#							else
-		#							{
-		#								print "Sek: $c $partSeq[$c][$i] :: $enzREGEX\n"; ####################################
-		#							}
-							}
-							$matches1{$c} = $numberOfMatches; # Do hashu %matches1 jest zapisywana liczba wyekstrachowanych fragmentów DNA ($numberOfMatches) dla każdej wersji allelicznej analizowanego SNP'u ($c), które są zrozpoznawane przez dany enzym restrykcyjny
-							$numberOfMatches = 0; # Zmienna $numberOfMatches jest zerwowana przed kolejnym cyklem pętli
-						}
-						##13
+						$partSeq[$seqID][$cc] = join("",@part); # Łączenie pojedynczych nukleotydów w tablicy @part, a następnie zapisywanie ich do tablicy dwuwymiarowej $partSeq ($partSeq[ID wersji allelicznej SNP'u][ID fragmentu DNA])
+						$cc++;
+											
 					}
 					
-					
 
+					##11
+				}
 
-					
-					##14 Określenie liczby genotypów/roślin, które są trawione przez enzym
-					my $DigestedGenotypes_No_homo = 0; # Zmienna $DigestedGenotypes_No_homo przechowuje liczbę genotypów, dla których obydwa allele są trawione przez aktualnie badany enzym
-					my $DigestedGenotypes_No_het = 0; # Zmienna $DigestedGenotypes_No_het przechowuje liczbę genotypów, dla których tylko jeden z dwóch alleli jest trawiony przez aktualnie badany enzym
-					my $nullGenotypes = 0;
-					for (my $i = 0; $i < $linie_ile; $i++) # Dla każdej analizowanej rośliny ...
-					{
-						my $genotypp = $genotypes{$linie[$i]}; # ... do zmiennej $genotypp jest zapisywany kod jej genotypu (0/0, 0/1, 1/2, itp.). Następnie ...
-						my @genotypp_indv = split("/", $genotypp); # Do tablicy @genotypp_indv zapisywane są kody poszczególnych alleli SNPu (0 - ref, 1 - alternatywny, 2 - kolejny alternatywny, itd.)
-						
-						if ($genotypp_indv[0] ne "\.")
-						{
-							if ($genotypp_indv[0] == $genotypp_indv[1]) # Jeżeli obydwa allele SNPu obecne w danym genotypie są identyczne, to ...
-							{
-								if ($matches1{$genotypp_indv[0]} > 0) # ... sprawdza, ile wyekstrachowanych fragmentów (dla danego allelu SNPu) jest identyczna z sekwencją rozpoznawaną przez aktualnie badany enzym (kod genotypu odpowiada identyfikatorowi danej wersji allelicznej badanego SNP'u, np. genotyp 0 -> referencja, genotyp 1 -> pierwsza alternatywna wersja alleliczna, 2 -> ...)
-								{
-									$DigestedGenotypes_No_homo++; # Jeżeli warunek zostanie spełniony, to wartość zmiennej $DigestedGenotypes_No_homo jest zwiększana o 1 (dana roślina o danym genotypie ma allel w obrębie którego znajduje się miejsce rozpoznawane przez aktualnie badany enzym)
-									#print "plant:$linie[$i]\tsingle:$genotypp\tmatches:$matches1{$genotypp}\n";
-								}
-							}
-							elsif ($genotypp_indv[0] != $genotypp_indv[1]) # Jeżeli obydwa allele SNPu obecne w danym genotypie nie są identyczne, to ...
-							{
-								my $check_digest = 0;
-								my $check_NO_digest = 0;
-								foreach my $genot (@genotypp_indv) # ... dla każdego genotypu składowego ...
-								{
-									if ($matches1{$genot} > 0) # ... sprawdza, czy dla danego genotypu składowego (danej wersji allelicznej) stwierdzono obecność jakiejkolwiek wyekstrachowanego fragmentu DNA, który był identyczny z sekwencją rozpoznwaną przez enzym
-									{
-										$check_digest++;
-									}
-									else
-									{
-										$check_NO_digest++;
-									}
-								}
-								
-								if ($check_digest > 0 and $check_NO_digest == 0) # Jeżeli obydwa allele genotypu heterozygotycznego ulegają trawieniu, to ...
-								{
-									$DigestedGenotypes_No_homo++; #  ... wartość zmiennej $DigestedGenotypes_No_homo jest zwiększana o 1 (obydwa allele genotypu heterozygotycznego danej rośliny mają miejsca rozpoznawane przez aktualnie badany enzym)
-								}
-								elsif ($check_digest > 0 and $check_NO_digest > 0) # Jeżeli tylko jeden allel genotypu heterozygotycznego ulega trawieniyu, to ...
-								{
-									$DigestedGenotypes_No_het++; #  ... wartość zmiennej $DigestedGenotypes_No_het jest zwiększana o 1 (tylko jeden allel genotypu heterozygotycznego danej rośliny ma miejsce rozpoznawane przez aktualnie badany enzym -> na żelu będą 2 fragmenty)
-								}
-		#						print "plant:$linie[$i]\tduo:$genotypp\n";
-							}
-						}
-						else
-						{
-							$nullGenotypes++;
-						}
-					}
-	#				print $DigestedGenotypes_No_homo . "\n";
-	#				print $DigestedGenotypes_No_het . "\n";
-	#				print join(" ",keys %genotypes);
-	#				exit;
-					##14
-
-					##15 Zapis do pliku 'out.txt' fragmentu sekwencji z daną wersją alleliczną analizowanego SNP'u (dla każdej rośliny)
-					my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
-					my @genotypes_uniq_tmp = grep { $_ ne "\.\/\." } @genotypes_uniq; # Zapisuje do tablicy @genotypes_uniq_tmp listę unikalnych genotypów za wyjątkiem './.'. Do dalszych analiz będą brane jedynie te markery, które mają co najmniej 2 różne genotypy (nie uwzględniając './.')
-					
-
-					if ($polymorphicSNPsOnly == 1 and $numberOfMatches_all > 0 and $DigestedGenotypes_No_homo < ( $linie_ile - $nullGenotypes ) and scalar(@genotypes_uniq_tmp) > 1 ) # (Aktywna opcja 'Mine CAPS from polymorphic ...') Jeżeli pośród analizowanych roślin są genotypy trawione i nietrawione, to wynik jest zapisywany do pliku
+				##12 Zapis do tablicy @partSeq_size liczby wyekstrachowanych fragmentów DNA dla wszystkich wersji allelicznych danego SNP'u
+				for (my $i = 0; $i < $SNP_alleles_No; $i++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
+				{
+					my $input = @{$partSeq[$i]}; # ... do zmiennej $input przypisywana jest liczba wyekstrachowanych fragmentów DNA, a następnie ...
+					@partSeq_size = (@partSeq_size, $input); # ... wartość tej zmiennej jest dodawana do tablicy @partSeq_size
+				}
+				##12
+				my $enzyme_recogn_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[1];
+				$enzyme_recogn_seq = uc $enzyme_recogn_seq;
+				
+				my $enzREGEX = enzREGEX( $enzyme_recogn_seq ); # przypisanie zmiennej $enzREGEX wyniku działania funkcji enzREGEX(<sekwencja DNA>), która zwraca sekwencję DNA w formie REGEX
+				
+				my $regex_inv = regex_inv($enzREGEX);
+				if ($regex_inv eq $enzREGEX) # Sprawdzenie czy rozpoznawana przez testowany enzym sekwencja jest palindromem
+				{
+					##13 Określenie liczby wyekstrachowanych fragmentów DNA dla każdej wersji allelicznej analizowanego SNP'u, które są zrozpoznawane przez dany enzym restrykcyjny. Wartości te są zapisywane do hashu %matches1
+					for (my $c = 0; $c < $SNP_alleles_No; $c++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
 					{ 
-						$numberOfSNPs++;
-
-						my ($chrom,$snp) = split(":",$seqName); # Ekstrakcja z nazwy analizowanego markera/SNP'u nazwy sekwencji/chromosomu na którym jest zlokalizowany SNP ($chrom) oraz nr nukleotydu w obrębie tej sekwencji/chromosomu w którym jest zlokalizowany dany SNP lub od którego rozpoczyna się sekwencja indelu ($snp)
-						my $snp_min = $snp - 1; # Do zmiennej $snp_min zapisywana jest lokalizacja nukleotydu znajdującego się tuż przed SNP'em
-						$chrom =~ s/>//; # Usunięcie z nazwy sekwencji/chromosomu znaku zachęty '>'
-						my $taker_from = $snp - $seq_len; # Zapis do zmiennej $taker_from numeru nukleotydu od którego będzie rozpoczynała się ekstrachowana sekwencja
-						my $snp_plus = $snp + $IndvSeq_snpLen_snp[0]; # Do zmiennej $snp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
-						my $taker_to = $snp + $seq_len + $IndvSeq_snpLen_snp[0] - 1; # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
-						
-						if ( $taker_from < 0 or $taker_to > $chrom_offset->{$chrom}[3] )
-						{
-							push @markersOnTheEdge, $seqName;
-							$numberOfSNPs--;
-							next;
+						for (my $i = 0; $i < $partSeq_size[$c]; $i++) # ... dla każdego wyekstrachowanego fragmentu DNA danej wersji allelicznej analizowanego SNP'u ...
+						{	
+							my $partSeq_upper = uc $partSeq[$c][$i];
+							if ($partSeq_upper =~ /$enzREGEX/) # ... porównywana jest zgodność sekwencji danego fragmentu DNA z sekencją (w formie REGEX) rozpoznawaną przez enzym. Jeżeli sekwencje są identyczne, to ...
+							{
+								#	print "Sek: $c, len:  $partSeq[$c][$i] == $enzREGEX\n"; ####################################
+								#	print "$enzyme_recogn_seq, $partSeq[$c][$i] == $enzREGEX\n";
+								
+								$numberOfMatches++; # ... wartość zmiennej $numberOfMatches (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla danej wersji allelicznej analizowanego SNP'u) powiększana jest o 1
+								$numberOfMatches_all++; # ... wartość zmiennej $numberOfMatches_all (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla wszystkich wersji allelicznych analizowanego SNP'u) powiększana jest o 1
+							}
+	#							else
+	#							{
+	#								print "Sek: $c $partSeq[$c][$i] :: $enzREGEX\n"; ####################################
+	#							}
 						}
-						
-						open my $fh, '>>', "$working_dir" . "out.txt"; # Otwarcie do zapisu pliku wynikowego 'out.txt'
-							print $fh "$seqName\n";
-							my $enz_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[-1];
-							my $tmp = $selected_enz_names_mix{$selected_enz_names_tmp[$i]};
-							print $fh "$tmp\t$enz_seq\n";
-							
-							
-							#my $taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1); # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
-							
-	#						print "\n";
-	#						print "\$taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1) = $taker_to";
-	#						exit;
-							
-							for (my $i = 0; $i < $SNP_alleles_No; $i++)
-							{
-								if ($i == 0)
-								{
-									print $fh "ref\t[$i]\t$IndvSeq_snp[$i]\t";
-								}
-								else
-								{
-									print $fh "alt\t[$i]\t$IndvSeq_snp[$i]\t";
-								}
-								
-								if ($matches1{$i} == 0)
-								{
-									print $fh "[-]\t";
-								}
-								else
-								{
-									print $fh "[+]\t";
-								}
-								
-								my @taker = samtools($reference_file_name,"$chrom:$taker_from-$snp_min",$chrom_offset); # Ekstrakcja 'lewej' części sekwencji (jej ostatni nukleotyd znajduje się tuż przez SNP'em referencji)
-								$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
-								print $fh $taker[0] . $IndvSeq_snp[$i]; # Zapis do pliku 'out.txt' 'lewej' części sekwencji ($taker[0]) oraz sekwencji samego SNP'u ($IndvSeq_snp[0])
-								
-								@taker = samtools($reference_file_name,"$chrom:$snp_plus-$taker_to",$chrom_offset); # Ekstrakcja 'prawej' części sekwencji (jej pierwszy nukleotyd znajduje się tuż za SNP'em referencji)
-								$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
-								print $fh "$taker[0]\n"; # Zapis do pliku 'out.txt' 'prawej' części sekwencji ($taker[0])
-							}
-							
-							#my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
-
-							foreach my $genotype_uniq ( sort{$b cmp $a} @genotypes_uniq ) # Dla każdego rodzaju genotypu ...
-							{
-								print $fh "$genotype_uniq\t"; # ... zapis do pliku wynikowego 'out.txt' nazwy genotypu, następnie ...
-								print $fh "["; # ... zapis do pliku wynikowego 'out.txt' nawiasu '['
-								
-								my $c = 0; # Zmienna określająca z który allel genotypu jest aktualnie analizowany (0 - allel pierwszy, 1 - allel drugi)
-								foreach my $indv_allele ( split("/", $genotype_uniq) ) # Dla każdego allelu wchodzącego w skład danego genotypu ...
-								{
-									if ($indv_allele eq "\.")
-									{
-										print $fh "?";
-									}
-									else
-									{
-										if ($matches1{$indv_allele} == 0) # ... jeżeli nie znajduje się w miejscu rozpoznawanym przez enzym, to ...
-										{
-											print $fh "-"; # ... zapisywany do pliku wynikowego 'out.txt' jest znak '-'
-										}
-										else
-										{
-											print $fh "+"; # A jeżeli dany allel znajduje się w miejscu rozpoznawanym przez enzym, to durkowany jest znak '+'
-										}
-									}
-									
-									if ($c == 0) # Jeżeli aktualnie analizowany jest pierwszy allel genotypu, to ...
-									{
-										print $fh "/"; # ... drukowany jest znak '/'
-									}
-									else
-									{
-										print $fh "]"; # ... a jeśli nie, to drukowany jest znak ']'
-										
-										foreach my $indv_name (sort{$a cmp $b} keys %genotypes) # Dla posortowanej nazwy każdego obiektu ...
-										{										
-											if ($genotypes{$indv_name} eq $genotype_uniq) # ... jeżeli genotyp odpowiadający obiektowi o danej nazwie jest identyczny z aktualnie tetsowanym genotypem, to ...
-											{
-												print $fh "\t$indv_name"; # ... do pliku wynikowego drukowana jest nazwa tego obiektu
-											}
-										}
-									}
-									
-									$c++; # Zwiększenie wartości zmiennej $c o 1 (sygnał, że w kolejnej rundzie będzie analizowany drugi allel)
-								}
-								print $fh "\n"; # Po przeanalizowaniu danego rodzaju genotypu drukowany jest znak nowej linii '\n'
-							}
-							print $fh "\n";
-						close $fh;
+						$matches1{$c} = $numberOfMatches; # Do hashu %matches1 jest zapisywana liczba wyekstrachowanych fragmentów DNA ($numberOfMatches) dla każdej wersji allelicznej analizowanego SNP'u ($c), które są zrozpoznawane przez dany enzym restrykcyjny
+						$numberOfMatches = 0; # Zmienna $numberOfMatches jest zerwowana przed kolejnym cyklem pętli
 					}
-					elsif ($polymorphicSNPsOnly == 0 and $numberOfMatches_all > 0 and ( $DigestedGenotypes_No_homo > 0 or $DigestedGenotypes_No_het > 0 ) ) # (Nieaktywna opcja 'Mine CAPS from polymorphic ...') Jeżeli genotyp którejkolwiek rośliny jest trawiony, to wynik jest zapisywany do pliku
-					{
-						$numberOfSNPs++;
-
-						my ($chrom,$snp) = split(":",$seqName); # Ekstrakcja z nazwy analizowanego markera/SNP'u nazwy sekwencji/chromosomu na którym jest zlokalizowany SNP ($chrom) oraz nr nukleotydu w obrębie tej sekwencji/chromosomu w którym jest zlokalizowany dany SNP lub od którego rozpoczyna się sekwencja indelu ($snp)
-						my $snp_min = $snp - 1; # Do zmiennej $snp_min zapisywana jest lokalizacja nukleotydu znajdującego się tuż przed SNP'em
-						$chrom =~ s/>//; # Usunięcie z nazwy sekwencji/chromosomu znaku zachęty '>'
-						my $taker_from = $snp - $seq_len; # Zapis do zmiennej $taker_from numeru nukleotydu od którego będzie rozpoczynała się ekstrachowana sekwencja
-						my $snp_plus = $snp + $IndvSeq_snpLen_snp[0]; # Do zmiennej $snp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
-						my $taker_to = $snp + $seq_len + $IndvSeq_snpLen_snp[0] - 1; # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
-						
-						if ( $taker_from < 0 or $taker_to > $chrom_offset->{$chrom}[3] )
-						{
-							push @markersOnTheEdge, $seqName;
-							$numberOfSNPs--;
-							next;
-						}
-						
-						open my $fh, '>>', "$working_dir" . "out.txt"; # Otwarcie do zapisu pliku wynikowego 'out.txt'
-							print $fh "$seqName\n";
-							my $enz_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[1];
-							my $tmp = $selected_enz_names_mix{$selected_enz_names_tmp[$i]};
-							print $fh "$tmp\t$enz_seq\n";
-							
-							
-							#my $taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1); # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
-							
-	#						print "\n";
-	#						print "\$taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1) = $taker_to";
-	#						exit;
-							
-							for (my $i = 0; $i < $SNP_alleles_No; $i++)
+					##13
+				}
+				else # Jeżeli rozpoznawana sekwencja nie jest palindromem, to testowany fragment DNA jest badany pod kątem występowania sekwencji komplementarnej do rozpoznawanej przez enzym
+				{
+					##13 Określenie liczby wyekstrachowanych fragmentów DNA dla każdej wersji allelicznej analizowanego SNP'u, które są zrozpoznawane przez dany enzym restrykcyjny. Wartości te są zapisywane do hashu %matches1
+					for (my $c = 0; $c < $SNP_alleles_No; $c++) # Dla każdej wersji allelicznej analizowanego SNP'u ...
+					{ 
+						for (my $i = 0; $i < $partSeq_size[$c]; $i++) # ... dla każdego wyekstrachowanego fragmentu DNA danej wersji allelicznej analizowanego SNP'u ...
+						{	
+							my $partSeq_upper = uc $partSeq[$c][$i];
+							if ($partSeq_upper =~ /$enzREGEX/ or $partSeq_upper =~ /$regex_inv/) # ... porównywana jest zgodność sekwencji danego fragmentu DNA z sekencją (w formie REGEX) rozpoznawaną przez enzym. Jeżeli sekwencje są identyczne, to ...
 							{
-								if ($i == 0)
+								#	print "Sek: $c, len:  $partSeq[$c][$i] == $enzREGEX\n"; ####################################
+								#	print "$enzyme_recogn_seq, $partSeq[$c][$i] == $enzREGEX\n";
+								
+								$numberOfMatches++; # ... wartość zmiennej $numberOfMatches (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla danej wersji allelicznej analizowanego SNP'u) powiększana jest o 1
+								$numberOfMatches_all++; # ... wartość zmiennej $numberOfMatches_all (liczba sekwencji/miejsc ze SNP'em rozpoznawanych przez enzym dla wszystkich wersji allelicznych analizowanego SNP'u) powiększana jest o 1
+							}
+	#							else
+	#							{
+	#								print "Sek: $c $partSeq[$c][$i] :: $enzREGEX\n"; ####################################
+	#							}
+						}
+						$matches1{$c} = $numberOfMatches; # Do hashu %matches1 jest zapisywana liczba wyekstrachowanych fragmentów DNA ($numberOfMatches) dla każdej wersji allelicznej analizowanego SNP'u ($c), które są zrozpoznawane przez dany enzym restrykcyjny
+						$numberOfMatches = 0; # Zmienna $numberOfMatches jest zerwowana przed kolejnym cyklem pętli
+					}
+					##13
+				}
+				
+				
+
+
+				
+				##14 Określenie liczby genotypów/roślin, które są trawione przez enzym
+				my $DigestedGenotypes_No_homo = 0; # Zmienna $DigestedGenotypes_No_homo przechowuje liczbę genotypów, dla których obydwa allele są trawione przez aktualnie badany enzym
+				my $DigestedGenotypes_No_het = 0; # Zmienna $DigestedGenotypes_No_het przechowuje liczbę genotypów, dla których tylko jeden z dwóch alleli jest trawiony przez aktualnie badany enzym
+				my $nullGenotypes = 0;
+				for (my $i = 0; $i < $linie_ile; $i++) # Dla każdej analizowanej rośliny ...
+				{
+					my $genotypp = $genotypes{$linie[$i]}; # ... do zmiennej $genotypp jest zapisywany kod jej genotypu (0/0, 0/1, 1/2, itp.). Następnie ...
+					my @genotypp_indv = split("/", $genotypp); # Do tablicy @genotypp_indv zapisywane są kody poszczególnych alleli SNPu (0 - ref, 1 - alternatywny, 2 - kolejny alternatywny, itd.)
+					
+					if ($genotypp_indv[0] ne "\.")
+					{
+						if ($genotypp_indv[0] == $genotypp_indv[1]) # Jeżeli obydwa allele SNPu obecne w danym genotypie są identyczne, to ...
+						{
+							if ($matches1{$genotypp_indv[0]} > 0) # ... sprawdza, ile wyekstrachowanych fragmentów (dla danego allelu SNPu) jest identyczna z sekwencją rozpoznawaną przez aktualnie badany enzym (kod genotypu odpowiada identyfikatorowi danej wersji allelicznej badanego SNP'u, np. genotyp 0 -> referencja, genotyp 1 -> pierwsza alternatywna wersja alleliczna, 2 -> ...)
+							{
+								$DigestedGenotypes_No_homo++; # Jeżeli warunek zostanie spełniony, to wartość zmiennej $DigestedGenotypes_No_homo jest zwiększana o 1 (dana roślina o danym genotypie ma allel w obrębie którego znajduje się miejsce rozpoznawane przez aktualnie badany enzym)
+								#print "plant:$linie[$i]\tsingle:$genotypp\tmatches:$matches1{$genotypp}\n";
+							}
+						}
+						elsif ($genotypp_indv[0] != $genotypp_indv[1]) # Jeżeli obydwa allele SNPu obecne w danym genotypie nie są identyczne, to ...
+						{
+							my $check_digest = 0;
+							my $check_NO_digest = 0;
+							foreach my $genot (@genotypp_indv) # ... dla każdego genotypu składowego ...
+							{
+								if ($matches1{$genot} > 0) # ... sprawdza, czy dla danego genotypu składowego (danej wersji allelicznej) stwierdzono obecność jakiejkolwiek wyekstrachowanego fragmentu DNA, który był identyczny z sekwencją rozpoznwaną przez enzym
 								{
-									print $fh "ref\t[$i]\t$IndvSeq_snp[$i]\t";
+									$check_digest++;
 								}
 								else
 								{
-									print $fh "alt\t[$i]\t$IndvSeq_snp[$i]\t";
+									$check_NO_digest++;
 								}
-								
-								if ($matches1{$i} == 0)
-								{
-									print $fh "[-]\t";
-								}
-								else
-								{
-									print $fh "[+]\t";
-								}
-								
-								my @taker = samtools($reference_file_name,"$chrom:$taker_from-$snp_min",$chrom_offset); # Ekstrakcja 'lewej' części sekwencji (jej ostatni nukleotyd znajduje się tuż przez SNP'em referencji)
-								$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
-								print $fh $taker[0] . $IndvSeq_snp[$i]; # Zapis do pliku 'out.txt' 'lewej' części sekwencji ($taker[0]) oraz sekwencji samego SNP'u ($IndvSeq_snp[0])
-								
-								@taker = samtools($reference_file_name,"$chrom:$snp_plus-$taker_to",$chrom_offset); # Ekstrakcja 'prawej' części sekwencji (jej pierwszy nukleotyd znajduje się tuż za SNP'em referencji)
-								$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
-								print $fh "$taker[0]\n"; # Zapis do pliku 'out.txt' 'prawej' części sekwencji ($taker[0])
 							}
 							
-							#my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
-
-							foreach my $genotype_uniq ( sort{$b cmp $a} @genotypes_uniq ) # Dla każdego rodzaju genotypu ...
+							if ($check_digest > 0 and $check_NO_digest == 0) # Jeżeli obydwa allele genotypu heterozygotycznego ulegają trawieniu, to ...
 							{
-								print $fh "$genotype_uniq\t"; # ... zapis do pliku wynikowego 'out.txt' nazwy genotypu, następnie ...
-								print $fh "["; # ... zapis do pliku wynikowego 'out.txt' nawiasu '['
-								
-								my $c = 0; # Zmienna określająca z który allel genotypu jest aktualnie analizowany (0 - allel pierwszy, 1 - allel drugi)
-								foreach my $indv_allele ( split("/", $genotype_uniq) ) # Dla każdego allelu wchodzącego w skład danego genotypu ...
-								{
-									if ($indv_allele eq "\.")
-									{
-										print $fh "?";
-									}
-									else
-									{
-										if ($matches1{$indv_allele} == 0) # ... jeżeli nie znajduje się w miejscu rozpoznawanym przez enzym, to ...
-										{
-											print $fh "-"; # ... zapisywany do pliku wynikowego 'out.txt' jest znak '-'
-										}
-										else
-										{
-											print $fh "+"; # A jeżeli dany allel znajduje się w miejscu rozpoznawanym przez enzym, to durkowany jest znak '+'
-										}
-									}
-									
-									if ($c == 0) # Jeżeli aktualnie analizowany jest pierwszy allel genotypu, to ...
-									{
-										print $fh "/"; # ... drukowany jest znak '/'
-									}
-									else
-									{
-										print $fh "]"; # ... a jeśli nie, to drukowany jest znak ']'
-										
-										foreach my $indv_name (sort{$a cmp $b} keys %genotypes) # Dla posortowanej nazwy każdego obiektu ...
-										{										
-											if ($genotypes{$indv_name} eq $genotype_uniq) # ... jeżeli genotyp odpowiadający obiektowi o danej nazwie jest identyczny z aktualnie tetsowanym genotypem, to ...
-											{
-												print $fh "\t$indv_name"; # ... do pliku wynikowego drukowana jest nazwa tego obiektu
-											}
-										}
-									}
-									
-									$c++; # Zwiększenie wartości zmiennej $c o 1 (sygnał, że w kolejnej rundzie będzie analizowany drugi allel)
-								}
-								print $fh "\n"; # Po przeanalizowaniu danego rodzaju genotypu drukowany jest znak nowej linii '\n'
+								$DigestedGenotypes_No_homo++; #  ... wartość zmiennej $DigestedGenotypes_No_homo jest zwiększana o 1 (obydwa allele genotypu heterozygotycznego danej rośliny mają miejsca rozpoznawane przez aktualnie badany enzym)
 							}
-							print $fh "\n";
-						close $fh;
-					}
-					
-					
-
-					
-
-					#parser($IndvSeq,$SNP_alleles_No,$enzymes{$selected_enz_names[$i]},$enzLength,$seqName,$selected_enz_names[$i],[%genotypes],[@IndvSeq_snpLen_snp],[@IndvSeq_snp]);
-					# $IndvSeq - tabela z sekwencjami każdej wersji genotypu
-					# $SNP_alleles_No - liczba genotypów
-					# $enzymes{$selected_enz_names[$i]} - sekwencja rozpoznawana przez enzym
-					# $enzLength - długość sekwencji rozpoznawanej przez enzym
-					# $seqName - identyfikator SNPu
-					# $selected_enz_names[$i] - nazwa enzymu
-					# @genotypes - lista ID genotypów (0 - ref., [1-9] - altern.)
-					# @IndvSeq_snpLen_snp - długość danego SNPu
-					# @IndvSeq_snp - sekwencja SNPu
-				}
-			}
-		}
-		return ($numberOfSNPs,1);
-
-	}
-	
-	sub singleCutSite
-	{
-		my $EnzSeq = "";
-		my @EnzSeqSingleNucl;
-		my $EnzSeqSingleNuclSize;
-		my %AllSeq;
-		my %AllSeq_NoOfRecognSeq;
-		my $preAllSeq;
-		my @input;
-		my @output = ();
-		$numberOfSNPsBefore = 0;
-		$numberOfSNPsAfter = 0;
-		$stop = 0;
-		
-		if (-e "$working_dir" . "out_single.txt") { unlink "$working_dir" . "out_single.txt" }
-		
-		open my $Ofh, '>>', "$working_dir" . "out_single.txt";
-		open my $fh, '<', "$working_dir" . "out.txt";
-			while (my $bier = <$fh>)
-			{
-				if ($stop == 1) { return ("",2) }
-				
-				chomp $bier;
-				if ($bier =~ /^>/) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od znaku zachęty '>', to ...
-				{
-					if ( scalar(keys %AllSeq) != 0 ) # Jeżeli hash %AllSeq zawiera jakiekolwiek dane ...
-					{
-						my $check = 0;
-						foreach my $snp_allele_ID (keys %AllSeq) # Dla każdego allelu SNPu ...
-						{
-							if ($AllSeq_NoOfRecognSeq{$snp_allele_ID} > 1) # ... sprawdza, czy liczba sekwencji rozpoznawanych przez enzym jest równa 1. Jeżeli tak, to ...
+							elsif ($check_digest > 0 and $check_NO_digest > 0) # Jeżeli tylko jeden allel genotypu heterozygotycznego ulega trawieniyu, to ...
 							{
-								$check++;
+								$DigestedGenotypes_No_het++; #  ... wartość zmiennej $DigestedGenotypes_No_het jest zwiększana o 1 (tylko jeden allel genotypu heterozygotycznego danej rośliny ma miejsce rozpoznawane przez aktualnie badany enzym -> na żelu będą 2 fragmenty)
 							}
+	#						print "plant:$linie[$i]\tduo:$genotypp\n";
 						}
-						
-						if ($check == 0)
-						{
-							foreach my $line (@output) # ... każda linia rekordu danego SNPu zapisaną w tablicy @output jest zapisywana do pliku wynikowego 'out_single.txt'
-							{
-								print $Ofh "$line\n";
-							}
-							
-							print $Ofh "\n";
-							$numberOfSNPsAfter++; # Wartość zmiennej $numberOfSNPsAfter (liczba SNPów z allelami zawierający) jest zwiększana o 1
-						}
-					}
-					
-					
-					%AllSeq = ();
-					%AllSeq_NoOfRecognSeq = ();
-					@output = ();
-					
-					push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
-					$numberOfSNPsBefore++; # ... wartość zmiennej $numberOfSNPsBefore zwiększana jest o 1
-				}
-				elsif ($bier =~ /^[A-Z]/ and scalar(split("\t", $bier)) == 2 ) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od dużej litery (linia z nazwami enzymów), to ...
-				{
-					@input = split("\t",$bier); # Do dablicy @input zapisywane są poszczególne pola danej linii
-					$EnzSeq = $input[1];
-					$EnzSeq =~ s/[_']//g;
-					$EnzSeq =~ s/(^[nN]+)|([nN]+$)//g;
-					push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
-				}
-				elsif ($bier =~ /^[ra]/ and scalar(split("\t", $bier)) == 5) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od 'ref', to ...
-				{
-					push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
-					@input = split("\t",$bier); # Do dablicy @input zapisywane są poszczególne pola danej linii
-					$preAllSeq = $input[4]; # Do zmiennej $preAllSeq zapisywana jest sekwencja nukleotydowa
-					$preAllSeq = uc $preAllSeq; # Zamiana dużych liter na małe w zmiennej $preAllSeq
-					my $snp_ID = $input[1]; # Do zmiennej $snp_ID zapisywany jest identyfikator danego allelu SNPu
-					$snp_ID =~ s/[\[\]]//g; # Usunięcie z wartości zmiennej $snp_ID nawiasów kwadratowych
-					$AllSeq{$snp_ID} = $preAllSeq; # Zapis do hashu %AllSeq sekwencji ($preAllSeq) zawierającej każdy allel SNPu
-					#push @AllSeq, $preAllSeq;
-				}
-				elsif ($bier =~ /^[0-9\.]/ and scalar(split("\t", $bier)) >= 3)
-				{
-					push @output, $bier; # ... do tablicy @output zapisywana jest cała linia
-				}
-				
-				$EnzSeq = uc $EnzSeq;
-				my $enzREGEX = enzREGEX($EnzSeq);
-				
-
-				@EnzSeqSingleNucl = split("",$EnzSeq);
-				$EnzSeqSingleNuclSize = @EnzSeqSingleNucl; 
-				
-				foreach my $snp_allele_ID (keys %AllSeq) # Dla każdego allelu SNPu ...
-				{
-					my $NoOfRecognSeq = 0;
-					my @Seq_singleNucl = split("", $AllSeq{$snp_allele_ID});
-					my $Seq_singleNucl_size = @Seq_singleNucl;
-					
-					## Pętla dzieli analizowaną sekwencję z danym allelem SNPu na którsze fragmenty o długości równej długości sekwencji rozpoznawanej przez enzym, a następnie porównuje te fragmenty z sekwencją ropoznawaną przez enzym.
-					my $regex_inv = regex_inv($enzREGEX);
-					if ($regex_inv eq $enzREGEX) # Sprawdzenie czy rozpoznawana przez testowany enzym sekwencja jest palindromem
-					{
-						for (my $i = 0; $i < $Seq_singleNucl_size - $EnzSeqSingleNuclSize; $i++)
-						{
-							my @seqPart = @Seq_singleNucl[$i..( $i + ($EnzSeqSingleNuclSize - 1) )]; # Ekstrakcja fragmentu o długości równej długości sekwencji rozpoznawanej przez enzym
-							my $seqPart = join("",@seqPart);
-							my $seqPart_upper = uc $seqPart;
-							if (uc $seqPart_upper =~ /$enzREGEX/)
-							{
-								$NoOfRecognSeq++;
-							}
-						}
-						##
 					}
 					else
 					{
-						for (my $i = 0; $i < $Seq_singleNucl_size - $EnzSeqSingleNuclSize; $i++)
-						{
-							my @seqPart = @Seq_singleNucl[$i..( $i + ($EnzSeqSingleNuclSize - 1) )]; # Ekstrakcja fragmentu o długości równej długości sekwencji rozpoznawanej przez enzym
-							my $seqPart = join("",@seqPart);
-							my $seqPart_upper = uc $seqPart;
-							if (uc $seqPart_upper =~ /$enzREGEX/ or uc $seqPart_upper =~ /$regex_inv/)
-							{
-								$NoOfRecognSeq++;
-							}
-						}
-						##
+						$nullGenotypes++;
+					}
+				}
+#				print $DigestedGenotypes_No_homo . "\n";
+#				print $DigestedGenotypes_No_het . "\n";
+#				print join(" ",keys %genotypes);
+#				exit;
+				##14
+
+				##15 Zapis do pliku 'out.txt' fragmentu sekwencji z daną wersją alleliczną analizowanego SNP'u (dla każdej rośliny)
+				my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
+				my @genotypes_uniq_tmp = grep { $_ ne "\.\/\." } @genotypes_uniq; # Zapisuje do tablicy @genotypes_uniq_tmp listę unikalnych genotypów za wyjątkiem './.'. Do dalszych analiz będą brane jedynie te markery, które mają co najmniej 2 różne genotypy (nie uwzględniając './.')
+				
+
+				if ($polymorphicSNPsOnly == 1 and $numberOfMatches_all > 0 and $DigestedGenotypes_No_homo < ( $linie_ile - $nullGenotypes ) and scalar(@genotypes_uniq_tmp) > 1 ) # (Aktywna opcja 'Mine CAPS from polymorphic ...') Jeżeli pośród analizowanych roślin są genotypy trawione i nietrawione, to wynik jest zapisywany do pliku
+				{ 
+					$numberOfSNPs++;
+
+					my ($chrom,$snp) = split(":",$seqName); # Ekstrakcja z nazwy analizowanego markera/SNP'u nazwy sekwencji/chromosomu na którym jest zlokalizowany SNP ($chrom) oraz nr nukleotydu w obrębie tej sekwencji/chromosomu w którym jest zlokalizowany dany SNP lub od którego rozpoczyna się sekwencja indelu ($snp)
+					my $snp_min = $snp - 1; # Do zmiennej $snp_min zapisywana jest lokalizacja nukleotydu znajdującego się tuż przed SNP'em
+					$chrom =~ s/>//; # Usunięcie z nazwy sekwencji/chromosomu znaku zachęty '>'
+					my $taker_from = $snp - $seq_len; # Zapis do zmiennej $taker_from numeru nukleotydu od którego będzie rozpoczynała się ekstrachowana sekwencja
+					my $snp_plus = $snp + $IndvSeq_snpLen_snp[0]; # Do zmiennej $snp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
+					my $taker_to = $snp + $seq_len + $IndvSeq_snpLen_snp[0] - 1; # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
+					
+					if ( $taker_from < 0 or $taker_to > $chrom_offset->{$chrom}[3] )
+					{
+						push @markersOnTheEdge, $seqName;
+						$numberOfSNPs--;
+						next;
 					}
 					
-					
-					
-					
-					$AllSeq_NoOfRecognSeq{$snp_allele_ID} = $NoOfRecognSeq; # Zapis do hashu %AllSeq_NoOfRecognSeq liczby rozpoznawanych sekwencji dla danego allelu SNPu
+					open my $fh, '>>', "$working_dir" . "out.txt"; # Otwarcie do zapisu pliku wynikowego 'out.txt'
+						print $fh "$seqName\n";
+						my $enz_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[-1];
+						my $tmp = $selected_enz_names_mix{$selected_enz_names_tmp[$i]};
+						print $fh "$tmp\t$enz_seq\n";
+						
+						
+						#my $taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1); # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
+						
+#						print "\n";
+#						print "\$taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1) = $taker_to";
+#						exit;
+						
+						for (my $i = 0; $i < $SNP_alleles_No; $i++)
+						{
+							if ($i == 0)
+							{
+								print $fh "ref\t[$i]\t$IndvSeq_snp[$i]\t";
+							}
+							else
+							{
+								print $fh "alt\t[$i]\t$IndvSeq_snp[$i]\t";
+							}
+							
+							if ($matches1{$i} == 0)
+							{
+								print $fh "[-]\t";
+							}
+							else
+							{
+								print $fh "[+]\t";
+							}
+							
+							my @taker = seqExtractor($reference_file_name,"$chrom:$taker_from-$snp_min",$chrom_offset); # Ekstrakcja 'lewej' części sekwencji (jej ostatni nukleotyd znajduje się tuż przez SNP'em referencji)
+							$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
+							print $fh $taker[0] . $IndvSeq_snp[$i]; # Zapis do pliku 'out.txt' 'lewej' części sekwencji ($taker[0]) oraz sekwencji samego SNP'u ($IndvSeq_snp[0])
+							
+							@taker = seqExtractor($reference_file_name,"$chrom:$snp_plus-$taker_to",$chrom_offset); # Ekstrakcja 'prawej' części sekwencji (jej pierwszy nukleotyd znajduje się tuż za SNP'em referencji)
+							$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
+							print $fh "$taker[0]\n"; # Zapis do pliku 'out.txt' 'prawej' części sekwencji ($taker[0])
+						}
+						
+						#my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
+
+						foreach my $genotype_uniq ( sort{$b cmp $a} @genotypes_uniq ) # Dla każdego rodzaju genotypu ...
+						{
+							print $fh "$genotype_uniq\t"; # ... zapis do pliku wynikowego 'out.txt' nazwy genotypu, następnie ...
+							print $fh "["; # ... zapis do pliku wynikowego 'out.txt' nawiasu '['
+							
+							my $c = 0; # Zmienna określająca z który allel genotypu jest aktualnie analizowany (0 - allel pierwszy, 1 - allel drugi)
+							foreach my $indv_allele ( split("/", $genotype_uniq) ) # Dla każdego allelu wchodzącego w skład danego genotypu ...
+							{
+								if ($indv_allele eq "\.")
+								{
+									print $fh "?";
+								}
+								else
+								{
+									if ($matches1{$indv_allele} == 0) # ... jeżeli nie znajduje się w miejscu rozpoznawanym przez enzym, to ...
+									{
+										print $fh "-"; # ... zapisywany do pliku wynikowego 'out.txt' jest znak '-'
+									}
+									else
+									{
+										print $fh "+"; # A jeżeli dany allel znajduje się w miejscu rozpoznawanym przez enzym, to durkowany jest znak '+'
+									}
+								}
+								
+								if ($c == 0) # Jeżeli aktualnie analizowany jest pierwszy allel genotypu, to ...
+								{
+									print $fh "/"; # ... drukowany jest znak '/'
+								}
+								else
+								{
+									print $fh "]"; # ... a jeśli nie, to drukowany jest znak ']'
+									
+									foreach my $indv_name (sort{$a cmp $b} keys %genotypes) # Dla posortowanej nazwy każdego obiektu ...
+									{										
+										if ($genotypes{$indv_name} eq $genotype_uniq) # ... jeżeli genotyp odpowiadający obiektowi o danej nazwie jest identyczny z aktualnie tetsowanym genotypem, to ...
+										{
+											print $fh "\t$indv_name"; # ... do pliku wynikowego drukowana jest nazwa tego obiektu
+										}
+									}
+								}
+								
+								$c++; # Zwiększenie wartości zmiennej $c o 1 (sygnał, że w kolejnej rundzie będzie analizowany drugi allel)
+							}
+							print $fh "\n"; # Po przeanalizowaniu danego rodzaju genotypu drukowany jest znak nowej linii '\n'
+						}
+						print $fh "\n";
+					close $fh;
 				}
-			}
-		close $fh;
-		
-		
-		
-		## Fragment kodu odpowiedzialny za sprawdzenie, czy dany CAPS (z pliku 'out.txt') zawiera sekwencję z jakimkolwiek allelem SNP z co najwyżej 1 miejscem trawienia. Jeżeli prawda, to dany CAPS jest drukowany do pliku 'out_single.txt'
-		my $check = 0;
-		foreach my $snp_allele_ID (keys %AllSeq) # Dla każdego allelu SNPu ...
-		{
-			if ($AllSeq_NoOfRecognSeq{$snp_allele_ID} > 1) # ... sprawdza, czy liczba sekwencji rozpoznawanych przez enzym jest równa 1. Jeżeli tak, to ...
-			{
-				$check++;
+				elsif ($polymorphicSNPsOnly == 0 and $numberOfMatches_all > 0 and ( $DigestedGenotypes_No_homo > 0 or $DigestedGenotypes_No_het > 0 ) ) # (Nieaktywna opcja 'Mine CAPS from polymorphic ...') Jeżeli genotyp którejkolwiek rośliny jest trawiony, to wynik jest zapisywany do pliku
+				{
+					$numberOfSNPs++;
+
+					my ($chrom,$snp) = split(":",$seqName); # Ekstrakcja z nazwy analizowanego markera/SNP'u nazwy sekwencji/chromosomu na którym jest zlokalizowany SNP ($chrom) oraz nr nukleotydu w obrębie tej sekwencji/chromosomu w którym jest zlokalizowany dany SNP lub od którego rozpoczyna się sekwencja indelu ($snp)
+					my $snp_min = $snp - 1; # Do zmiennej $snp_min zapisywana jest lokalizacja nukleotydu znajdującego się tuż przed SNP'em
+					$chrom =~ s/>//; # Usunięcie z nazwy sekwencji/chromosomu znaku zachęty '>'
+					my $taker_from = $snp - $seq_len; # Zapis do zmiennej $taker_from numeru nukleotydu od którego będzie rozpoczynała się ekstrachowana sekwencja
+					my $snp_plus = $snp + $IndvSeq_snpLen_snp[0]; # Do zmiennej $snp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
+					my $taker_to = $snp + $seq_len + $IndvSeq_snpLen_snp[0] - 1; # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
+					
+					if ( $taker_from < 0 or $taker_to > $chrom_offset->{$chrom}[3] )
+					{
+						push @markersOnTheEdge, $seqName;
+						$numberOfSNPs--;
+						next;
+					}
+					
+					open my $fh, '>>', "$working_dir" . "out.txt"; # Otwarcie do zapisu pliku wynikowego 'out.txt'
+						print $fh "$seqName\n";
+						my $enz_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[1];
+						my $tmp = $selected_enz_names_mix{$selected_enz_names_tmp[$i]};
+						print $fh "$tmp\t$enz_seq\n";
+						
+						
+						#my $taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1); # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
+						
+#						print "\n";
+#						print "\$taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1) = $taker_to";
+#						exit;
+						
+						for (my $i = 0; $i < $SNP_alleles_No; $i++)
+						{
+							if ($i == 0)
+							{
+								print $fh "ref\t[$i]\t$IndvSeq_snp[$i]\t";
+							}
+							else
+							{
+								print $fh "alt\t[$i]\t$IndvSeq_snp[$i]\t";
+							}
+							
+							if ($matches1{$i} == 0)
+							{
+								print $fh "[-]\t";
+							}
+							else
+							{
+								print $fh "[+]\t";
+							}
+							
+							my @taker = seqExtractor($reference_file_name,"$chrom:$taker_from-$snp_min",$chrom_offset); # Ekstrakcja 'lewej' części sekwencji (jej ostatni nukleotyd znajduje się tuż przez SNP'em referencji)
+							$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
+							print $fh $taker[0] . $IndvSeq_snp[$i]; # Zapis do pliku 'out.txt' 'lewej' części sekwencji ($taker[0]) oraz sekwencji samego SNP'u ($IndvSeq_snp[0])
+							
+							@taker = seqExtractor($reference_file_name,"$chrom:$snp_plus-$taker_to",$chrom_offset); # Ekstrakcja 'prawej' części sekwencji (jej pierwszy nukleotyd znajduje się tuż za SNP'em referencji)
+							$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
+							print $fh "$taker[0]\n"; # Zapis do pliku 'out.txt' 'prawej' części sekwencji ($taker[0])
+						}
+						
+						#my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
+
+						foreach my $genotype_uniq ( sort{$b cmp $a} @genotypes_uniq ) # Dla każdego rodzaju genotypu ...
+						{
+							print $fh "$genotype_uniq\t"; # ... zapis do pliku wynikowego 'out.txt' nazwy genotypu, następnie ...
+							print $fh "["; # ... zapis do pliku wynikowego 'out.txt' nawiasu '['
+							
+							my $c = 0; # Zmienna określająca z który allel genotypu jest aktualnie analizowany (0 - allel pierwszy, 1 - allel drugi)
+							foreach my $indv_allele ( split("/", $genotype_uniq) ) # Dla każdego allelu wchodzącego w skład danego genotypu ...
+							{
+								if ($indv_allele eq "\.")
+								{
+									print $fh "?";
+								}
+								else
+								{
+									if ($matches1{$indv_allele} == 0) # ... jeżeli nie znajduje się w miejscu rozpoznawanym przez enzym, to ...
+									{
+										print $fh "-"; # ... zapisywany do pliku wynikowego 'out.txt' jest znak '-'
+									}
+									else
+									{
+										print $fh "+"; # A jeżeli dany allel znajduje się w miejscu rozpoznawanym przez enzym, to durkowany jest znak '+'
+									}
+								}
+								
+								if ($c == 0) # Jeżeli aktualnie analizowany jest pierwszy allel genotypu, to ...
+								{
+									print $fh "/"; # ... drukowany jest znak '/'
+								}
+								else
+								{
+									print $fh "]"; # ... a jeśli nie, to drukowany jest znak ']'
+									
+									foreach my $indv_name (sort{$a cmp $b} keys %genotypes) # Dla posortowanej nazwy każdego obiektu ...
+									{										
+										if ($genotypes{$indv_name} eq $genotype_uniq) # ... jeżeli genotyp odpowiadający obiektowi o danej nazwie jest identyczny z aktualnie tetsowanym genotypem, to ...
+										{
+											print $fh "\t$indv_name"; # ... do pliku wynikowego drukowana jest nazwa tego obiektu
+										}
+									}
+								}
+								
+								$c++; # Zwiększenie wartości zmiennej $c o 1 (sygnał, że w kolejnej rundzie będzie analizowany drugi allel)
+							}
+							print $fh "\n"; # Po przeanalizowaniu danego rodzaju genotypu drukowany jest znak nowej linii '\n'
+						}
+						print $fh "\n";
+					close $fh;
+				}
+				
+				
+
+				
+
+				#parser($IndvSeq,$SNP_alleles_No,$enzymes{$selected_enz_names[$i]},$enzLength,$seqName,$selected_enz_names[$i],[%genotypes],[@IndvSeq_snpLen_snp],[@IndvSeq_snp]);
+				# $IndvSeq - tabela z sekwencjami każdej wersji genotypu
+				# $SNP_alleles_No - liczba genotypów
+				# $enzymes{$selected_enz_names[$i]} - sekwencja rozpoznawana przez enzym
+				# $enzLength - długość sekwencji rozpoznawanej przez enzym
+				# $seqName - identyfikator SNPu
+				# $selected_enz_names[$i] - nazwa enzymu
+				# @genotypes - lista ID genotypów (0 - ref., [1-9] - altern.)
+				# @IndvSeq_snpLen_snp - długość danego SNPu
+				# @IndvSeq_snp - sekwencja SNPu
 			}
 		}
-		
-		if ($check == 0)
+	}
+	return ($numberOfSNPs,1);
+
+}
+
+sub singleCutSite
+{
+	my $EnzSeq = "";
+	my @EnzSeqSingleNucl;
+	my $EnzSeqSingleNuclSize;
+	my %AllSeq;
+	my %AllSeq_NoOfRecognSeq;
+	my $preAllSeq;
+	my @input;
+	my @output = ();
+	$numberOfSNPsBefore = 0;
+	$numberOfSNPsAfter = 0;
+	$stop = 0;
+	
+	if (-e "$working_dir" . "out_single.txt") { unlink "$working_dir" . "out_single.txt" }
+	
+	open my $Ofh, '>>', "$working_dir" . "out_single.txt";
+	open my $fh, '<', "$working_dir" . "out.txt";
+		while (my $bier = <$fh>)
 		{
-			foreach my $line (@output) # ... każda linia rekordu danego SNPu zapisaną w tablicy @output jest zapisywana do pliku wynikowego 'out_single.txt'
+			if ($stop == 1) { return ("",2) }
+			
+			chomp $bier;
+			if ($bier =~ /^>/) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od znaku zachęty '>', to ...
 			{
-				print $Ofh "$line\n";
+				if ( scalar(keys %AllSeq) != 0 ) # Jeżeli hash %AllSeq zawiera jakiekolwiek dane ...
+				{
+					my $check = 0;
+					foreach my $snp_allele_ID (keys %AllSeq) # Dla każdego allelu SNPu ...
+					{
+						if ($AllSeq_NoOfRecognSeq{$snp_allele_ID} > 1) # ... sprawdza, czy liczba sekwencji rozpoznawanych przez enzym jest równa 1. Jeżeli tak, to ...
+						{
+							$check++;
+						}
+					}
+					
+					if ($check == 0)
+					{
+						foreach my $line (@output) # ... każda linia rekordu danego SNPu zapisaną w tablicy @output jest zapisywana do pliku wynikowego 'out_single.txt'
+						{
+							print $Ofh "$line\n";
+						}
+						
+						print $Ofh "\n";
+						$numberOfSNPsAfter++; # Wartość zmiennej $numberOfSNPsAfter (liczba SNPów z allelami zawierający) jest zwiększana o 1
+					}
+				}
+				
+				
+				%AllSeq = ();
+				%AllSeq_NoOfRecognSeq = ();
+				@output = ();
+				
+				push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
+				$numberOfSNPsBefore++; # ... wartość zmiennej $numberOfSNPsBefore zwiększana jest o 1
+			}
+			elsif ($bier =~ /^[A-Z]/ and scalar(split("\t", $bier)) == 2 ) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od dużej litery (linia z nazwami enzymów), to ...
+			{
+				@input = split("\t",$bier); # Do dablicy @input zapisywane są poszczególne pola danej linii
+				$EnzSeq = $input[1];
+				$EnzSeq =~ s/[_']//g;
+				$EnzSeq =~ s/(^[nN]+)|([nN]+$)//g;
+				push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
+			}
+			elsif ($bier =~ /^[ra]/ and scalar(split("\t", $bier)) == 5) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od 'ref', to ...
+			{
+				push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
+				@input = split("\t",$bier); # Do dablicy @input zapisywane są poszczególne pola danej linii
+				$preAllSeq = $input[4]; # Do zmiennej $preAllSeq zapisywana jest sekwencja nukleotydowa
+				$preAllSeq = uc $preAllSeq; # Zamiana dużych liter na małe w zmiennej $preAllSeq
+				my $snp_ID = $input[1]; # Do zmiennej $snp_ID zapisywany jest identyfikator danego allelu SNPu
+				$snp_ID =~ s/[\[\]]//g; # Usunięcie z wartości zmiennej $snp_ID nawiasów kwadratowych
+				$AllSeq{$snp_ID} = $preAllSeq; # Zapis do hashu %AllSeq sekwencji ($preAllSeq) zawierającej każdy allel SNPu
+				#push @AllSeq, $preAllSeq;
+			}
+			elsif ($bier =~ /^[0-9\.]/ and scalar(split("\t", $bier)) >= 3)
+			{
+				push @output, $bier; # ... do tablicy @output zapisywana jest cała linia
 			}
 			
-			print $Ofh "\n";
-			$numberOfSNPsAfter++; # Wartość zmiennej $numberOfSNPsAfter (liczba SNPów z allelami zawierający) jest zwiększana o 1
-		}
-		
-		close $Ofh;
-		return ("",1);
-	}
-	
-	sub enzREGEX
-	{
-		my $regex = "";
-		my ($Seq) = @_;
-		my @SeqIndv = split("",$Seq);
-		my $SeqIndvL = @SeqIndv;
-		for (my $i=0;$i<$SeqIndvL;$i++) {
-			if ($SeqIndv[$i] =~ /[ATGC]/) {$regex = $regex.$SeqIndv[$i]}
-			elsif ($SeqIndv[$i] eq "R") {$regex = $regex."[AG]"}
-			elsif ($SeqIndv[$i] eq "Y") {$regex = $regex."[CT]"}
-			elsif ($SeqIndv[$i] eq "S") {$regex = $regex."[CG]"}
-			elsif ($SeqIndv[$i] eq "W") {$regex = $regex."[AT]"}
-			elsif ($SeqIndv[$i] eq "K") {$regex = $regex."[GT]"}
-			elsif ($SeqIndv[$i] eq "M") {$regex = $regex."[AC]"}
-			elsif ($SeqIndv[$i] eq "B") {$regex = $regex."[CGT]"}
-			elsif ($SeqIndv[$i] eq "D") {$regex = $regex."[AGT]"}
-			elsif ($SeqIndv[$i] eq "H") {$regex = $regex."[ACT]"}
-			elsif ($SeqIndv[$i] eq "V") {$regex = $regex."[ACG]"}
-			elsif ($SeqIndv[$i] eq "N") {$regex = $regex."[ACGT]"}
-		}
-		return $regex;
-	}
-	
-	sub uniq {
-		my %seen;
-		return grep {!$seen{$_}++} @_;
-	}
-	
-	sub samtools
-	{
-		my ($fh,$Ofh);
-		my $error_code = 1;
-		
-		
-		my $input = $_[0]; # nazwa pliku fasta
-		my $chrom_and_coord = $_[1]; # <ID chromosomu>:<nr nukleotydu początkowego>-<nr nukleotydu końcowego>
-		my $chrom = (split(":", $chrom_and_coord))[0]; # zapis ID chromosomu
-		my $coord = (split(":", $chrom_and_coord))[1]; # zapis koordynatów ekstrachowanej sekwencji
-		my $from_nucl = (split("-", $coord))[0]; # nr nukleotydu początkowego
-		my $to_nucl = (split("-", $coord))[1]; # nr nukleotydu końcowego
-		my $chrom_offset_ = $_[2];
-		
-		if (!$chrom_offset_->{$chrom})
-		{
-			return ($chrom,3);
-		}
-		elsif ($from_nucl eq "" or $to_nucl > $chrom_offset_->{$chrom}[3])
-		{
-		#	print "$coord $to_nucl\n";
-			return ($chrom,4);
-		}
-		
+			$EnzSeq = uc $EnzSeq;
+			my $enzREGEX = enzREGEX($EnzSeq);
+			
 
-		open $fh, '<', $input or die "Cannot open the file $input\n";
-			my $chrom_offset = $chrom_offset_->{$chrom}[0];
-			my $line_len = $chrom_offset_->{$chrom}[1];
-			my $last_line_len = $chrom_offset_->{$chrom}[2];
-			my $chrom_len = $chrom_offset_->{$chrom}[3];
-
-			if (!defined($chrom_offset))
+			@EnzSeqSingleNucl = split("",$EnzSeq);
+			$EnzSeqSingleNuclSize = @EnzSeqSingleNucl; 
+			
+			foreach my $snp_allele_ID (keys %AllSeq) # Dla każdego allelu SNPu ...
 			{
+				my $NoOfRecognSeq = 0;
+				my @Seq_singleNucl = split("", $AllSeq{$snp_allele_ID});
+				my $Seq_singleNucl_size = @Seq_singleNucl;
+				
+				## Pętla dzieli analizowaną sekwencję z danym allelem SNPu na którsze fragmenty o długości równej długości sekwencji rozpoznawanej przez enzym, a następnie porównuje te fragmenty z sekwencją ropoznawaną przez enzym.
+				my $regex_inv = regex_inv($enzREGEX);
+				if ($regex_inv eq $enzREGEX) # Sprawdzenie czy rozpoznawana przez testowany enzym sekwencja jest palindromem
+				{
+					for (my $i = 0; $i < $Seq_singleNucl_size - $EnzSeqSingleNuclSize; $i++)
+					{
+						my @seqPart = @Seq_singleNucl[$i..( $i + ($EnzSeqSingleNuclSize - 1) )]; # Ekstrakcja fragmentu o długości równej długości sekwencji rozpoznawanej przez enzym
+						my $seqPart = join("",@seqPart);
+						my $seqPart_upper = uc $seqPart;
+						if (uc $seqPart_upper =~ /$enzREGEX/)
+						{
+							$NoOfRecognSeq++;
+						}
+					}
+					##
+				}
+				else
+				{
+					for (my $i = 0; $i < $Seq_singleNucl_size - $EnzSeqSingleNuclSize; $i++)
+					{
+						my @seqPart = @Seq_singleNucl[$i..( $i + ($EnzSeqSingleNuclSize - 1) )]; # Ekstrakcja fragmentu o długości równej długości sekwencji rozpoznawanej przez enzym
+						my $seqPart = join("",@seqPart);
+						my $seqPart_upper = uc $seqPart;
+						if (uc $seqPart_upper =~ /$enzREGEX/ or uc $seqPart_upper =~ /$regex_inv/)
+						{
+							$NoOfRecognSeq++;
+						}
+					}
+					##
+				}
+				
+				
+				
+				
+				$AllSeq_NoOfRecognSeq{$snp_allele_ID} = $NoOfRecognSeq; # Zapis do hashu %AllSeq_NoOfRecognSeq liczby rozpoznawanych sekwencji dla danego allelu SNPu
+			}
+		}
+	close $fh;
+	
+	
+	
+	## Fragment kodu odpowiedzialny za sprawdzenie, czy dany CAPS (z pliku 'out.txt') zawiera sekwencję z jakimkolwiek allelem SNP z co najwyżej 1 miejscem trawienia. Jeżeli prawda, to dany CAPS jest drukowany do pliku 'out_single.txt'
+	my $check = 0;
+	foreach my $snp_allele_ID (keys %AllSeq) # Dla każdego allelu SNPu ...
+	{
+		if ($AllSeq_NoOfRecognSeq{$snp_allele_ID} > 1) # ... sprawdza, czy liczba sekwencji rozpoznawanych przez enzym jest równa 1. Jeżeli tak, to ...
+		{
+			$check++;
+		}
+	}
+	
+	if ($check == 0)
+	{
+		foreach my $line (@output) # ... każda linia rekordu danego SNPu zapisaną w tablicy @output jest zapisywana do pliku wynikowego 'out_single.txt'
+		{
+			print $Ofh "$line\n";
+		}
+		
+		print $Ofh "\n";
+		$numberOfSNPsAfter++; # Wartość zmiennej $numberOfSNPsAfter (liczba SNPów z allelami zawierający) jest zwiększana o 1
+	}
+	
+	close $Ofh;
+	return ("",1);
+}
+
+sub enzREGEX
+{
+	my $regex = "";
+	my ($Seq) = @_;
+	my @SeqIndv = split("",$Seq);
+	my $SeqIndvL = @SeqIndv;
+	for (my $i=0;$i<$SeqIndvL;$i++) {
+		if ($SeqIndv[$i] =~ /[ATGC]/) {$regex = $regex.$SeqIndv[$i]}
+		elsif ($SeqIndv[$i] eq "R") {$regex = $regex."[AG]"}
+		elsif ($SeqIndv[$i] eq "Y") {$regex = $regex."[CT]"}
+		elsif ($SeqIndv[$i] eq "S") {$regex = $regex."[CG]"}
+		elsif ($SeqIndv[$i] eq "W") {$regex = $regex."[AT]"}
+		elsif ($SeqIndv[$i] eq "K") {$regex = $regex."[GT]"}
+		elsif ($SeqIndv[$i] eq "M") {$regex = $regex."[AC]"}
+		elsif ($SeqIndv[$i] eq "B") {$regex = $regex."[CGT]"}
+		elsif ($SeqIndv[$i] eq "D") {$regex = $regex."[AGT]"}
+		elsif ($SeqIndv[$i] eq "H") {$regex = $regex."[ACT]"}
+		elsif ($SeqIndv[$i] eq "V") {$regex = $regex."[ACG]"}
+		elsif ($SeqIndv[$i] eq "N") {$regex = $regex."[ACGT]"}
+	}
+	return $regex;
+}
+
+sub uniq {
+	my %seen;
+	return grep {!$seen{$_}++} @_;
+}
+
+sub seqExtractor
+{
+	my ($fh,$Ofh);
+	my $error_code = 1;
+	
+	
+	my $input = $_[0]; # nazwa pliku fasta
+	my $chrom_and_coord = $_[1]; # <ID chromosomu>:<nr nukleotydu początkowego>-<nr nukleotydu końcowego>
+	my $chrom = (split(":", $chrom_and_coord))[0]; # zapis ID chromosomu
+	my $coord = (split(":", $chrom_and_coord))[1]; # zapis koordynatów ekstrachowanej sekwencji
+	my $from_nucl = (split("-", $coord))[0]; # nr nukleotydu początkowego
+	my $to_nucl = (split("-", $coord))[1]; # nr nukleotydu końcowego
+	my $chrom_offset_ = $_[2];
+	
+	if (!$chrom_offset_->{$chrom})
+	{
+		return ($chrom,3);
+	}
+	elsif ($from_nucl eq "" or $to_nucl > $chrom_offset_->{$chrom}[3])
+	{
+	#	print "$coord $to_nucl\n";
+		return ($chrom,4);
+	}
+	
+
+	open $fh, '<', $input or die "Cannot open the file $input\n";
+		my $chrom_offset = $chrom_offset_->{$chrom}[0];
+		my $line_len = $chrom_offset_->{$chrom}[1];
+		my $last_line_len = $chrom_offset_->{$chrom}[2];
+		my $chrom_len = $chrom_offset_->{$chrom}[3];
+
+		if (!defined($chrom_offset))
+		{
 #				print "Error - there is no '$chrom' sequence in the '$input' file.\n";
 #				print "Exiting ...\n";
-				$error_code = 3;
-				return ($chrom,$error_code);
-			}
-			
-			my $from_offset = 0;
-			my $offset = 0;
-			
-			if ($from_nucl <= ($chrom_len - $last_line_len + 1) or $chrom_len == $last_line_len)
-			{
-				$from_offset = $chrom_offset + $from_nucl - 1 + int($from_nucl / $line_len); # pozycja kursora od którego rozpocznie się czytanie sekwencji
-				$offset = $to_nucl - $from_nucl + 1 + (int($to_nucl / $line_len) - int($from_nucl / $line_len));
-				if (($from_nucl % $line_len) == 0) {$from_offset -= 1; $offset += 1} # parametr ustalony eksperymentalnie :/
-			}
-			else
-			{
-				$from_offset = $chrom_offset + $from_nucl + int($from_nucl / $line_len); # pozycja kursora od którego rozpocznie się czytanie sekwencji
-				$offset = $to_nucl - $from_nucl + (int($to_nucl / $line_len) - int($from_nucl / $line_len));
-				if (($from_nucl % $line_len) != 0) {$from_offset -= 1; $offset += 1} # parametr ustalony eksperymentalnie :/
-			}
-
-			my $line = "";
-			seek($fh, $from_offset, 0);
-			read($fh, $line, $offset);
-			$line =~ s/\n//g;
-
-			return ($line,$error_code);
-
-		close $fh;
-	}
-	
-	
-	sub regex_inv
-	{
-		my $input = $_[0];
-		my @data = split("", $input);
-		my @data_inv = ();
-		
-		my @temp = ();
-		my $check = 0;
-		for (my $i = scalar(@data) - 1; $i >= 0; $i-- )
-		{
-			if ($data[$i] =~ /\]/)
-			{
-				$check = 1;
-				next;
-			}
-			elsif ($data[$i] =~ /\[/)
-			{
-				my @temp_sorted = sort { $a cmp $b } @temp;
-				push @temp_sorted, ']';
-				unshift @temp_sorted, '[';
-				push @data_inv, join("", @temp_sorted);
-				
-				@temp = ();
-				$check = 0;
-			}
-			elsif ($check == 1 and $data[$i] =~ /[^\[\]]/ )
-			{
-				unshift @temp, invert($data[$i]);
-			}
-			else
-			{
-				push @data_inv, invert($data[$i]);
-			}
+			$error_code = 3;
+			return ($chrom,$error_code);
 		}
 		
-		return join("", @data_inv);
-	}
-
-	sub invert
-	{
-		my $input = $_[0];
-		my $output = "";
-		if ($input eq 'A') { $output = 'T' }
-		elsif ($input eq 'T') { $output = 'A' }
-		elsif ($input eq 'C') { $output = 'G' }
-		elsif ($input eq 'G') { $output = 'C' }
-		else { $output = $input }
+		my $from_offset = 0;
+		my $offset = 0;
 		
-		return $output;
+		if ($from_nucl <= ($chrom_len - $last_line_len + 1) or $chrom_len == $last_line_len)
+		{
+			$from_offset = $chrom_offset + $from_nucl - 1 + int($from_nucl / $line_len); # pozycja kursora od którego rozpocznie się czytanie sekwencji
+			$offset = $to_nucl - $from_nucl + 1 + (int($to_nucl / $line_len) - int($from_nucl / $line_len));
+			if (($from_nucl % $line_len) == 0) {$from_offset -= 1; $offset += 1} # parametr ustalony eksperymentalnie :/
+		}
+		else
+		{
+			$from_offset = $chrom_offset + $from_nucl + int($from_nucl / $line_len); # pozycja kursora od którego rozpocznie się czytanie sekwencji
+			$offset = $to_nucl - $from_nucl + (int($to_nucl / $line_len) - int($from_nucl / $line_len));
+			if (($from_nucl % $line_len) != 0) {$from_offset -= 1; $offset += 1} # parametr ustalony eksperymentalnie :/
+		}
+
+		my $line = "";
+		seek($fh, $from_offset, 0);
+		read($fh, $line, $offset);
+		$line =~ s/\n//g;
+
+		return ($line,$error_code);
+
+	close $fh;
+}
+
+
+sub regex_inv
+{
+	my $input = $_[0];
+	my @data = split("", $input);
+	my @data_inv = ();
+	
+	my @temp = ();
+	my $check = 0;
+	for (my $i = scalar(@data) - 1; $i >= 0; $i-- )
+	{
+		if ($data[$i] =~ /\]/)
+		{
+			$check = 1;
+			next;
+		}
+		elsif ($data[$i] =~ /\[/)
+		{
+			my @temp_sorted = sort { $a cmp $b } @temp;
+			push @temp_sorted, ']';
+			unshift @temp_sorted, '[';
+			push @data_inv, join("", @temp_sorted);
+			
+			@temp = ();
+			$check = 0;
+		}
+		elsif ($check == 1 and $data[$i] =~ /[^\[\]]/ )
+		{
+			unshift @temp, invert($data[$i]);
+		}
+		else
+		{
+			push @data_inv, invert($data[$i]);
+		}
 	}
+	
+	return join("", @data_inv);
+}
+
+sub invert
+{
+	my $input = $_[0];
+	my $output = "";
+	if ($input eq 'A') { $output = 'T' }
+	elsif ($input eq 'T') { $output = 'A' }
+	elsif ($input eq 'C') { $output = 'G' }
+	elsif ($input eq 'G') { $output = 'C' }
+	else { $output = $input }
+	
+	return $output;
 }
