@@ -1,6 +1,24 @@
+# VCF2CAPS v2.0 - the software for CAPS markers identification from Variant Call Format (VCF) file.
+# Copyright 2018 Wojciech Wesołowski
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>
+
+
 use strict;
 use warnings;
 use Tk;
+use Tk::NoteBook;
 use Tk::FBox;
 use Tk::Animation;
 use threads;
@@ -8,12 +26,18 @@ use threads::shared;
 use Tk::Listbox;
 use Tk::Pane;
 use Tk::ProgressBar;
+use Tk::PNG;
+
 use LWP::Simple;
+use Digest::MD5 qw(md5_hex);
 use Data::Dumper;
 use Encode;
 use utf8;
 
+
 $|++;
+
+
 
 my $enzyme_file_name:shared;
 my $reference_file_name:shared;
@@ -25,7 +49,6 @@ my $die_confirm:shared = 0;
 my $jobID:shared = 0;
 my %enzymes_db:shared;
 my $line_vcf:shared = 0;
-my $line:shared = 0;
 my @reference_analysis_results:shared = (0);
 my @enzyme_analysis_results:shared = (0);
 my %vcf_analysis_results:shared = (err_code => 0);
@@ -36,6 +59,9 @@ my @singleCutSite_results:shared;
 my $numberOfSNPs:shared = 0;
 my $actualSNPNo:shared = 0;
 my $capsMining_percent;
+my $cfw_gf_CAPS_filtering_percent;
+my $cfw_scf_CAPS_filtering_percent;
+my $cfw_c2f_convertion_percent;
 my $singleCutSite_percent;
 my @linie:shared;
 my $numberOfSNPsAfter:shared;
@@ -52,6 +78,39 @@ my $stop:shared;
 my @markersOnTheEdge:shared = ();
 my $log_first_use = 0;
 my $genome_exists = 0;
+my %cfw_groups:shared;
+$cfw_groups{1} = &share({});
+$cfw_groups{2} = &share({});
+$cfw_groups{3} = &share({});
+my $cfw_group_1_maxError_value = 0;
+my $cfw_gf_group_2_maxError_value = 0;
+my $cfw_gf_group_3_maxError_value = 0;
+my $oneFiltGroup_twoGenotypes:shared;
+my $cfw_gf_input_file:shared = "";
+my $cfw_c2f_input_file:shared = "";
+my $cfw_gf_output_file:shared = "";
+my $cfw_c2f_output_file:shared = "";
+my $cfw_scf_input_file:shared = "";
+my $cfw_scf_output_file:shared = "";
+my %vcf2capsOutput_results:shared = (err_code => 0);
+my $total_caps_number:shared = 0;
+my $caps_filtered:shared = 0;
+my @caps_filtration_result:shared = ();
+my @caps_to_fasta_result:shared = ();
+my $v2c_file_name:shared = "";
+my %v2c_check_result:shared = (err_type => "");
+my $vcf_md5:shared = "";
+my $reference_md5:shared = "";
+my %reference_index_check_result:shared = ();
+my $download_enzyme_db_result:shared = 0;
+
+#my %data_filtered:shared;
+#$data_filtered{id} = &share({});
+#$data_filtered{enz} = &share({});
+#$data_filtered{ref} = &share({});
+#$data_filtered{alt} = &share({});
+#$data_filtered{genot_print} = &share([]);
+#$data_filtered{genot} = &share([]);
 
 my $fh;
 my $out;
@@ -63,16 +122,13 @@ my $enzyme_check;
 my $enzyme_check_status;
 my $reference_check;
 my $reference_check_status;
-my $vcf_check;
-my $vcf_check_status;
 my $raw_vcf_check;
 my $raw_vcf_check_status;
 my $snps_seq_len:shared = 40;
 my $output_seq_len:shared = 500;
-my $onlyCommercially = 0;
-my $polymorphicSNPsOnly:shared = 1;
-my $cutters4 = 1;
-my $cutters5 = 1;
+my $onlyCommercially = 1;
+my $cutters4 = 0;
+my $cutters5 = 0;
 my $cutters6 = 0;
 my $custom = 0;
 my $custom_value = "";
@@ -81,22 +137,637 @@ my $comp_state = 0;
 my $working_dir:shared = "";
 
 
+print 'VCF2CAPS v2.0 - the software for CAPS markers identification 
+from Variant Call Format (VCF) file.
+Copyright 2018 Wojciech Wesolowski
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>
+
+This window is required for VCF2CAPS to run properly.
+You can minimise it but please do not close it.
+
+';
+
+
+
 threads->create( \&work )->detach();
 
 my $mw = MainWindow->new();
-$mw->title("vcf2caps v2.0");
+$mw->title("VCF2CAPS v2.0");
 $mw->minsize( qw(500 300) );
+
+my $warning_image = $mw->Photo(-data => 'R0lGODlhEAAQAOZRAP/eAPPFc/alEu7s6Py+AfarJfzZm/LPkP7shv/iAP/mAO/iy/aqIPm4OPzV
+fP/4mfanF//jKvejC/7vtv/wY//zlv/3dP/4d/73e/vPdf/vWf/wq//kLfzSc//tKf/4Yvq9Gv/j
+B//plf/bAv/cMv/3hvHZrfinFvTFcfq8GPvCRPfBXf3prPPHePm2M/vQeP3lnvPGdvHZr/fBXvzQ
+VP/nivzUZP/qj//YBvTGcvS7VP/tNP/cNP7urf7rpv/kEf7obP/ZC/rAQP/3tv7nY//5rfW7Vfin
+F//4XP3mif/XAP/TAPLKgf/bAP/smvegA////+7u7gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH/
+C1hNUCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRj
+emtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRv
+YmUgWE1QIENvcmUgNS4wLWMwNjAgNjEuMTM0Nzc3LCAyMDEwLzAyLzEyLTE3OjMyOjAwICAgICAg
+ICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRm
+LXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0
+dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUu
+Y29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4w
+L3NUeXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1
+IFdpbmRvd3MiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6OEYyMkVFOTFFMzcxMTFFODgwNzJE
+MDA0QTMyMUExMUEiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6OEYyMkVFOTJFMzcxMTFFODgw
+NzJEMDA0QTMyMUExMUEiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1w
+LmlpZDo4RjIyRUU4RkUzNzExMUU4ODA3MkQwMDRBMzIxQTExQSIgc3RSZWY6ZG9jdW1lbnRJRD0i
+eG1wLmRpZDo4RjIyRUU5MEUzNzExMUU4ODA3MkQwMDRBMzIxQTExQSIvPiA8L3JkZjpEZXNjcmlw
+dGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PgH//v38+/r5
++Pf29fTz8vHw7+7t7Ovq6ejn5uXk4+Lh4N/e3dzb2tnY19bV1NPS0dDPzs3My8rJyMfGxcTDwsHA
+v769vLu6ubi3trW0s7KxsK+urayrqqmop6alpKOioaCfnp2cm5qZmJeWlZSTkpGQj46NjIuKiYiH
+hoWEg4KBgH9+fXx7enl4d3Z1dHNycXBvbm1sa2ppaGdmZWRjYmFgX15dXFtaWVhXVlVUU1JRUE9O
+TUxLSklIR0ZFRENCQUA/Pj08Ozo5ODc2NTQzMjEwLy4tLCsqKSgnJiUkIyIhIB8eHRwbGhkYFxYV
+FBMSERAPDg0MCwoJCAcGBQQDAgEAACH5BAEAAFEALAAAAAAQABAAAAeegFGCg4SFhlFMBQVMh4QB
+IEUPKQGNghAYSB8lApVMNhdPEhY0jIYLDRVHUFAnQy4Lhig9Hk+rTztJOYUHDhoKtVBPChQdB4MD
+KwghCcBPCT8IMwOCLTAcAADN2BEsMVEmL0RN400EBOQjQBkyRhNBSvDN8Eo4PjoCGyRL+837Szw3
+BARQUcOJQScGDBx0IkIIJSYMnkicSJFBqUqGAgEAOw==');
+
+my $icon_base64 = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAhCAYAAAC4JqlRAAAACXBIWXMAAAsTAAALEwEAmpwYAAAK
+T2lDQ1BQaG90b3Nob3AgSUNDIHByb2ZpbGUAAHjanVNnVFPpFj333vRCS4iAlEtvUhUIIFJCi4AU
+kSYqIQkQSoghodkVUcERRUUEG8igiAOOjoCMFVEsDIoK2AfkIaKOg6OIisr74Xuja9a89+bN/rXX
+Pues852zzwfACAyWSDNRNYAMqUIeEeCDx8TG4eQuQIEKJHAAEAizZCFz/SMBAPh+PDwrIsAHvgAB
+eNMLCADATZvAMByH/w/qQplcAYCEAcB0kThLCIAUAEB6jkKmAEBGAYCdmCZTAKAEAGDLY2LjAFAt
+AGAnf+bTAICd+Jl7AQBblCEVAaCRACATZYhEAGg7AKzPVopFAFgwABRmS8Q5ANgtADBJV2ZIALC3
+AMDOEAuyAAgMADBRiIUpAAR7AGDIIyN4AISZABRG8lc88SuuEOcqAAB4mbI8uSQ5RYFbCC1xB1dX
+Lh4ozkkXKxQ2YQJhmkAuwnmZGTKBNA/g88wAAKCRFRHgg/P9eM4Ors7ONo62Dl8t6r8G/yJiYuP+
+5c+rcEAAAOF0ftH+LC+zGoA7BoBt/qIl7gRoXgugdfeLZrIPQLUAoOnaV/Nw+H48PEWhkLnZ2eXk
+5NhKxEJbYcpXff5nwl/AV/1s+X48/Pf14L7iJIEyXYFHBPjgwsz0TKUcz5IJhGLc5o9H/LcL//wd
+0yLESWK5WCoU41EScY5EmozzMqUiiUKSKcUl0v9k4t8s+wM+3zUAsGo+AXuRLahdYwP2SycQWHTA
+4vcAAPK7b8HUKAgDgGiD4c93/+8//UegJQCAZkmScQAAXkQkLlTKsz/HCAAARKCBKrBBG/TBGCzA
+BhzBBdzBC/xgNoRCJMTCQhBCCmSAHHJgKayCQiiGzbAdKmAv1EAdNMBRaIaTcA4uwlW4Dj1wD/ph
+CJ7BKLyBCQRByAgTYSHaiAFiilgjjggXmYX4IcFIBBKLJCDJiBRRIkuRNUgxUopUIFVIHfI9cgI5
+h1xGupE7yAAygvyGvEcxlIGyUT3UDLVDuag3GoRGogvQZHQxmo8WoJvQcrQaPYw2oefQq2gP2o8+
+Q8cwwOgYBzPEbDAuxsNCsTgsCZNjy7EirAyrxhqwVqwDu4n1Y8+xdwQSgUXACTYEd0IgYR5BSFhM
+WE7YSKggHCQ0EdoJNwkDhFHCJyKTqEu0JroR+cQYYjIxh1hILCPWEo8TLxB7iEPENyQSiUMyJ7mQ
+AkmxpFTSEtJG0m5SI+ksqZs0SBojk8naZGuyBzmULCAryIXkneTD5DPkG+Qh8lsKnWJAcaT4U+Io
+UspqShnlEOU05QZlmDJBVaOaUt2ooVQRNY9aQq2htlKvUYeoEzR1mjnNgxZJS6WtopXTGmgXaPdp
+r+h0uhHdlR5Ol9BX0svpR+iX6AP0dwwNhhWDx4hnKBmbGAcYZxl3GK+YTKYZ04sZx1QwNzHrmOeZ
+D5lvVVgqtip8FZHKCpVKlSaVGyovVKmqpqreqgtV81XLVI+pXlN9rkZVM1PjqQnUlqtVqp1Q61Mb
+U2epO6iHqmeob1Q/pH5Z/YkGWcNMw09DpFGgsV/jvMYgC2MZs3gsIWsNq4Z1gTXEJrHN2Xx2KruY
+/R27iz2qqaE5QzNKM1ezUvOUZj8H45hx+Jx0TgnnKKeX836K3hTvKeIpG6Y0TLkxZVxrqpaXllir
+SKtRq0frvTau7aedpr1Fu1n7gQ5Bx0onXCdHZ4/OBZ3nU9lT3acKpxZNPTr1ri6qa6UbobtEd79u
+p+6Ynr5egJ5Mb6feeb3n+hx9L/1U/W36p/VHDFgGswwkBtsMzhg8xTVxbzwdL8fb8VFDXcNAQ6Vh
+lWGX4YSRudE8o9VGjUYPjGnGXOMk423GbcajJgYmISZLTepN7ppSTbmmKaY7TDtMx83MzaLN1pk1
+mz0x1zLnm+eb15vft2BaeFostqi2uGVJsuRaplnutrxuhVo5WaVYVVpds0atna0l1rutu6cRp7lO
+k06rntZnw7Dxtsm2qbcZsOXYBtuutm22fWFnYhdnt8Wuw+6TvZN9un2N/T0HDYfZDqsdWh1+c7Ry
+FDpWOt6azpzuP33F9JbpL2dYzxDP2DPjthPLKcRpnVOb00dnF2e5c4PziIuJS4LLLpc+Lpsbxt3I
+veRKdPVxXeF60vWdm7Obwu2o26/uNu5p7ofcn8w0nymeWTNz0MPIQ+BR5dE/C5+VMGvfrH5PQ0+B
+Z7XnIy9jL5FXrdewt6V3qvdh7xc+9j5yn+M+4zw33jLeWV/MN8C3yLfLT8Nvnl+F30N/I/9k/3r/
+0QCngCUBZwOJgUGBWwL7+Hp8Ib+OPzrbZfay2e1BjKC5QRVBj4KtguXBrSFoyOyQrSH355jOkc5p
+DoVQfujW0Adh5mGLw34MJ4WHhVeGP45wiFga0TGXNXfR3ENz30T6RJZE3ptnMU85ry1KNSo+qi5q
+PNo3ujS6P8YuZlnM1VidWElsSxw5LiquNm5svt/87fOH4p3iC+N7F5gvyF1weaHOwvSFpxapLhIs
+OpZATIhOOJTwQRAqqBaMJfITdyWOCnnCHcJnIi/RNtGI2ENcKh5O8kgqTXqS7JG8NXkkxTOlLOW5
+hCepkLxMDUzdmzqeFpp2IG0yPTq9MYOSkZBxQqohTZO2Z+pn5mZ2y6xlhbL+xW6Lty8elQfJa7OQ
+rAVZLQq2QqboVFoo1yoHsmdlV2a/zYnKOZarnivN7cyzytuQN5zvn//tEsIS4ZK2pYZLVy0dWOa9
+rGo5sjxxedsK4xUFK4ZWBqw8uIq2Km3VT6vtV5eufr0mek1rgV7ByoLBtQFr6wtVCuWFfevc1+1d
+T1gvWd+1YfqGnRs+FYmKrhTbF5cVf9go3HjlG4dvyr+Z3JS0qavEuWTPZtJm6ebeLZ5bDpaql+aX
+Dm4N2dq0Dd9WtO319kXbL5fNKNu7g7ZDuaO/PLi8ZafJzs07P1SkVPRU+lQ27tLdtWHX+G7R7ht7
+vPY07NXbW7z3/T7JvttVAVVN1WbVZftJ+7P3P66Jqun4lvttXa1ObXHtxwPSA/0HIw6217nU1R3S
+PVRSj9Yr60cOxx++/p3vdy0NNg1VjZzG4iNwRHnk6fcJ3/ceDTradox7rOEH0x92HWcdL2pCmvKa
+RptTmvtbYlu6T8w+0dbq3nr8R9sfD5w0PFl5SvNUyWna6YLTk2fyz4ydlZ19fi753GDborZ752PO
+32oPb++6EHTh0kX/i+c7vDvOXPK4dPKy2+UTV7hXmq86X23qdOo8/pPTT8e7nLuarrlca7nuer21
+e2b36RueN87d9L158Rb/1tWeOT3dvfN6b/fF9/XfFt1+cif9zsu72Xcn7q28T7xf9EDtQdlD3YfV
+P1v+3Njv3H9qwHeg89HcR/cGhYPP/pH1jw9DBY+Zj8uGDYbrnjg+OTniP3L96fynQ89kzyaeF/6i
+/suuFxYvfvjV69fO0ZjRoZfyl5O/bXyl/erA6xmv28bCxh6+yXgzMV70VvvtwXfcdx3vo98PT+R8
+IH8o/2j5sfVT0Kf7kxmTk/8EA5jz/GMzLdsAAAAgY0hSTQAAeiUAAICDAAD5/wAAgOkAAHUwAADq
+YAAAOpgAABdvkl/FRgAABv9JREFUeNrEl21MlNkVx3/PMzMOIFRGQSgvGqMYXqRKLKsGUIxaY0gQ
+azURtW6oWSVxm64mpmmbfukHywebdY1tUIdk0UWjYUlMSwxG5C1EcN1AIIrCyBAsLzO8TBw6DDPz
+PLcfWK4Ob6vJJp7kSe5z7jnn/u+555x7riKEEHxEUvfs2YPZbGb58uXyCw8PJy0tDbvd/pMsUlxc
+TFhYWNAaZrOZ3bt3g9frFUeOHBGA/FasWCF6enrET0kHDx4MWqOwsFB4vV6BEEL09/eL6OhoORkX
+FydcLtePGtU0TbjdbjEyMiKGh4eFw+EQY2NjYnJyco7siRMngjbY19cnhBDCCJCQkEBRURElJSUA
+DAwMUFNTw6FDh+a40+Vy0d3djd1uZ3h4GI/Hg8/nQ9M0FEXBaDRiNpuJiIggJiaGlJQUjEYjNTU1
+0sbx48dZtWoVAMpMEPb09JCRkcHExAQA+/bto7q6WioNDw/T1NREV1cXfr9/WllRfvT8FUVBVVU6
+Ozt58uQJTqeTzs5O4uPjURTlLYAZZDdv3gTAaDTS2tpKRkYGDQ0NNDQ0oGnajFXMoUuJj/05MbEr
+iYiIYMkSM0LX8Xo9uFwunE4nIyMj6LqOrusoikIgEGB8fJwDBw7gcDjIy8sLBtDU1EROTo5Ef+bM
+GXbu3ElHR8d0yqgqP1seRdYnvyQ1NQVVASEEIWHh83pjcnISq9XK06dPSUpKQgiBoijouk5eXh4Z
+GRkY31XIzs4mNzeXuro6AK5fv47ZbCYyMhIBJK1bz68P7MfvneQ///wr7lEnKiqTbje7Pitm/cY9
+QQBCQ0Opra2lqqqK5ORk9u7dS1RUFImJiWzatGlaaHa0Wq3WoHTZtWuXKCkpEa2t3wkhhHD8t1tc
+/PRXouXf3whNCwghhOhurxMXP90t3owMBdlqaWkRBoNB2rp8+bK4dOmS6O3tlTJzALjdbpGSkiKV
+LBaLqKmpkfM+n1e8aH8sdF0L0vvXF78RL9q/C+KdPHlS2tm4caMYGBgQDx8+DJJhvvw+e/ZskBes
+Vuui9aDxrlVcO39U+H0+ybPb7cJisUgbFy9enFdXnR04Q0NDmEwmwsPDJe/KlStvM+Adevl9HV//
++XcM93Vx5E9fYTSZ5Fx5eTnj4+MAxMbGUlhYOH+ezkbU3NwsLly4ILZt2xbkhYaGBikz5f2fuPP3
+8+Lrv3wm7M+/n7OrN2/eiLVr10rdc+fOLei9OR4YHBxE0zQ2b96M0fg2Sa5duybHlV+eIypxDb/9
+WymrkzNmNoL+g5cqKyux2WwyE4qKihYsVMbZDLfbTSAQIC4ujpSUFFkDqqqqGBocwDc2RFdjA6ad
+EVR++UeEpoGi4J14w/rNOXySdzQI7P79+0lNTX1/ADNl1mAwsH37dmw2Gx6Ph4mJCa5eu84fzhRz
+6h+30HQdoetSTw/4CV8RQ1NjA83NzZJ/+vTpRUv1HAAGgwEATdPIzc2lt7dX3gllZWX8/vPPiVv/
+iwUNfvXFeTnOzc1lx44dizcksxkRERHSE6GhoZw6dUrO9fX1Ufnttwsae/bsGffu3Xvv3c8LIDo6
+WgaVw+EgJyeHpKSkoGDU33H9u2S1WpmamgIgLS2N/Pz8DwewevVqOX79+jWjo6NBO2lpaeHBgwdz
+DDmdTioqKuR/UVERoaGhHw4gMTFRekHXdZ4/f86xY8ewWCxS5urVq3MMVVRUMDQ0tGjh0XWd+vp6
+RkZGFgZgMBjIzs5m5pbu6OhgcHCQ4uJiKVNdXS3TE2Bqagqr1Sr/jx49Smxs7NzdqioDAwPU1tYu
+DGDm/BISEmQwNjY2smXLFlmevV4vZWVl8wJarPDYbDZ6e3vp6uqira1tYQAGg4H8/HxCQkIAGBsb
+o7u7m8zMTClz+/ZtnE4nAKWlpZJfUFAwp/AIIXj8+DG3bt3C7/cjhOD+/fu0trYGd0Szqaenh7t3
+7+Lz+VBVFVVVaW9vp66uDqfTSWlpKdnZ2WzYsEEeWVNTE1lZWXLhV69eUV9fT39/v7S7Zs0a0tPT
+GR0dXRzATCZUVlbicrkAMJvNTE5OYrPZWLJkCUuXLuXGjRv4/X6ysrIoLy/H4/Fgt9t58eIFDodD
+gjGZTGRlZZGTk4PBYJhu0d7naebxeHj06BFtbW3ouo7RaERVp0/P5/PJtjwsLAyj0YjX6w3qERVF
+ITU1la1bt8rYknMf8jYcGxujpaWF6upqLBYLISEhGAyG6fb6h2ZT0zT8fj+qqhIdHc26detIT08n
+JiZm/rb9Qx+nXV1dZGZmYjabiYqKYtmyZYSEhGAymTh8+DDJycnEx8djsViIjIyUnnrvy2gxevny
+JQUFBdN3v67jcDjkGQcCAQKBAHfu3GHlypXvbVP52M9zI6B8TAD/HwC4utyA+72HQQAAAABJRU5E
+rkJggg==';
+#my $logo = $mw->Photo(-file => "icons/logo5.png", -format => 'PNG', -width => 32, -height => 31);
+my $logo = $mw->Photo(-data => $icon_base64, -format => 'PNG', -width => 32, -height => 31);
+$mw->withdraw;
+$mw->iconimage($logo);
+
+my $terminal;
+
+#my $folder_image = $mw->Photo(-file => 'icons/file_add.gif');
+my $folder_image = $mw->Photo(-data => 'R0lGODlhEAAQANUyAPT09Obm5vDw8MC6r+fi18nJyezs7PX19a+vr7awperq6t3XzETXAPLy8ujo
+6J7lAIjhAM/Kv93Vxu3t7ba2trW1tbToAPf39xfQALu7u8rKyrq6uufh17i4uNrSwy3TANbW1vj4
++MO+s+vr69TPxMnDuNnTyNvUxfn5+eDg4Nvb28XFxXHeAFraAL29vaCgoPr6+v///+7u7gAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH/C1hNUCBEYXRhWE1QPD94cGFja2V0
+IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4
+bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS4wLWMwNjAg
+NjEuMTM0Nzc3LCAyMDEwLzAyLzEyLTE3OjMyOjAwICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpy
+ZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRl
+c2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFw
+LzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxu
+czpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIg
+eG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IFdpbmRvd3MiIHhtcE1NOkluc3Rh
+bmNlSUQ9InhtcC5paWQ6NDYwNDUzMDMxMjVCMTFFODg5NzY5MjU5MkU5NEZBODIiIHhtcE1NOkRv
+Y3VtZW50SUQ9InhtcC5kaWQ6NDYwNDUzMDQxMjVCMTFFODg5NzY5MjU5MkU5NEZBODIiPiA8eG1w
+TU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo0NjA0NTMwMTEyNUIxMUU4
+ODk3NjkyNTkyRTk0RkE4MiIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo0NjA0NTMwMjEyNUIx
+MUU4ODk3NjkyNTkyRTk0RkE4MiIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6
+eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PgH//v38+/r5+Pf29fTz8vHw7+7t7Ovq6ejn5uXk
+4+Lh4N/e3dzb2tnY19bV1NPS0dDPzs3My8rJyMfGxcTDwsHAv769vLu6ubi3trW0s7KxsK+urayr
+qqmop6alpKOioaCfnp2cm5qZmJeWlZSTkpGQj46NjIuKiYiHhoWEg4KBgH9+fXx7enl4d3Z1dHNy
+cXBvbm1sa2ppaGdmZWRjYmFgX15dXFtaWVhXVlVUU1JRUE9OTUxLSklIR0ZFRENCQUA/Pj08Ozo5
+ODc2NTQzMjEwLy4tLCsqKSgnJiUkIyIhIB8eHRwbGhkYFxYVFBMSERAPDg0MCwoJCAcGBQQDAgEA
+ACH5BAEAADIALAAAAAAQABAAAAaXQJkM4SoWM52KZmIQCl2waBSgiFFWE6cMKoU1AjGrRsuVAhzh
+WIXchV0EjoCiw+6iLoAGIMMm+DkcaTEuWi8hEhInHh4xFhYxL4UHkwIGBjEPD5CFAgsLghAQgkIv
+IyYRMSyqq6oxpAEkJTEttLW0rjIvKREiggwMo7kqA8QJCTEfH5tOLyAFzxsbMRgYy0IIL9nagghC
+QQA7');
+#my $analyze_image = $mw->Photo(-file => 'icons/analyze.gif');
+my $analyze_image = $mw->Photo(-data => 'R0lGODlhEAAQALMPAACd0QCq4wCv6UeIrwCZzACazwCb0gCh1gCh2ACYzQCk2wCUxgCd0gCe1QBd
+lO7u7iH/C1hNUCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpy
+ZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0
+az0iQWRvYmUgWE1QIENvcmUgNS4wLWMwNjAgNjEuMTM0Nzc3LCAyMDEwLzAyLzEyLTE3OjMyOjAw
+ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIv
+MjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4
+bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMu
+YWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94
+YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3No
+b3AgQ1M1IFdpbmRvd3MiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6QUEwRUIwNDlEQzZBMTFF
+OEJDNzBENTI4MkQ0MTY5RTYiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6QUEwRUIwNEFEQzZB
+MTFFOEJDNzBENTI4MkQ0MTY5RTYiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJ
+RD0ieG1wLmlpZDpBQTBFQjA0N0RDNkExMUU4QkM3MEQ1MjgyRDQxNjlFNiIgc3RSZWY6ZG9jdW1l
+bnRJRD0ieG1wLmRpZDpBQTBFQjA0OERDNkExMUU4QkM3MEQ1MjgyRDQxNjlFNiIvPiA8L3JkZjpE
+ZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PgH/
+/v38+/r5+Pf29fTz8vHw7+7t7Ovq6ejn5uXk4+Lh4N/e3dzb2tnY19bV1NPS0dDPzs3My8rJyMfG
+xcTDwsHAv769vLu6ubi3trW0s7KxsK+urayrqqmop6alpKOioaCfnp2cm5qZmJeWlZSTkpGQj46N
+jIuKiYiHhoWEg4KBgH9+fXx7enl4d3Z1dHNycXBvbm1sa2ppaGdmZWRjYmFgX15dXFtaWVhXVlVU
+U1JRUE9OTUxLSklIR0ZFRENCQUA/Pj08Ozo5ODc2NTQzMjEwLy4tLCsqKSgnJiUkIyIhIB8eHRwb
+GhkYFxYVFBMSERAPDg0MCwoJCAcGBQQDAgEAACH5BAEAAA8ALAAAAAAQABAAAAQu8MlJq7044+E0
+dULnPWA4OkEqZo7RIMp6OUnBHLLlAHyuEwSfbiG0cEbIpHISAQA7');
+#my $ok_image = $mw->Photo(-file => 'icons/ok.gif');
+my $ok_image = $mw->Photo(-data => 'R0lGODlhEAAQALMKAEfbAI7rAC/WAKbwAL31ANX6ABjRAF/hAHbmABizAe7u7gAAAAAAAAAAAAAA
+AAAAACH/C1hNUCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpy
+ZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0
+az0iQWRvYmUgWE1QIENvcmUgNS4wLWMwNjAgNjEuMTM0Nzc3LCAyMDEwLzAyLzEyLTE3OjMyOjAw
+ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIv
+MjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4
+bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMu
+YWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94
+YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3No
+b3AgQ1M1IFdpbmRvd3MiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6QzE5RDkwMzYxMjVBMTFF
+ODgzMEJGOUNFMzY4RjVEOEMiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6QzE5RDkwMzcxMjVB
+MTFFODgzMEJGOUNFMzY4RjVEOEMiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJ
+RD0ieG1wLmlpZDpDMTlEOTAzNDEyNUExMUU4ODMwQkY5Q0UzNjhGNUQ4QyIgc3RSZWY6ZG9jdW1l
+bnRJRD0ieG1wLmRpZDpDMTlEOTAzNTEyNUExMUU4ODMwQkY5Q0UzNjhGNUQ4QyIvPiA8L3JkZjpE
+ZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PgH/
+/v38+/r5+Pf29fTz8vHw7+7t7Ovq6ejn5uXk4+Lh4N/e3dzb2tnY19bV1NPS0dDPzs3My8rJyMfG
+xcTDwsHAv769vLu6ubi3trW0s7KxsK+urayrqqmop6alpKOioaCfnp2cm5qZmJeWlZSTkpGQj46N
+jIuKiYiHhoWEg4KBgH9+fXx7enl4d3Z1dHNycXBvbm1sa2ppaGdmZWRjYmFgX15dXFtaWVhXVlVU
+U1JRUE9OTUxLSklIR0ZFRENCQUA/Pj08Ozo5ODc2NTQzMjEwLy4tLCsqKSgnJiUkIyIhIB8eHRwb
+GhkYFxYVFBMSERAPDg0MCwoJCAcGBQQDAgEAACH5BAEAAAoALAAAAAAQABAAAAQ0UMlJq70465r2
+TEW3JUQpSic6rGkSnG7wUglid/VtJUfP+5gEYDhM7QRI4yVhUAY90KgkAgA7');
+#my $fail_image = $mw->Photo(-file => 'icons/fail.gif');
+my $fail_image = $mw->Photo(-data => 'R0lGODlhEAAQAMQXALgAAMkAAKkAANsAAMAAALAAAJ8AANIAAP8AAKYAANMAAPkAAMYAANkAAKwA
+AL8AAN8AAPMAALkAALMAAOwAAOYAAMwAAO7u7gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH/C1hN
+UCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtj
+OWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUg
+WE1QIENvcmUgNS4wLWMwNjAgNjEuMTM0Nzc3LCAyMDEwLzAyLzEyLTE3OjMyOjAwICAgICAgICAi
+PiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5
+bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6
+Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29t
+L3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NU
+eXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IFdp
+bmRvd3MiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MjAwRDcyMTQxMjVCMTFFOEE3OUFDRTgy
+QTJCN0QxNUIiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MjAwRDcyMTUxMjVCMTFFOEE3OUFD
+RTgyQTJCN0QxNUIiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlp
+ZDoyMDBENzIxMjEyNUIxMUU4QTc5QUNFODJBMkI3RDE1QiIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1w
+LmRpZDoyMDBENzIxMzEyNUIxMUU4QTc5QUNFODJBMkI3RDE1QiIvPiA8L3JkZjpEZXNjcmlwdGlv
+bj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PgH//v38+/r5+Pf2
+9fTz8vHw7+7t7Ovq6ejn5uXk4+Lh4N/e3dzb2tnY19bV1NPS0dDPzs3My8rJyMfGxcTDwsHAv769
+vLu6ubi3trW0s7KxsK+urayrqqmop6alpKOioaCfnp2cm5qZmJeWlZSTkpGQj46NjIuKiYiHhoWE
+g4KBgH9+fXx7enl4d3Z1dHNycXBvbm1sa2ppaGdmZWRjYmFgX15dXFtaWVhXVlVUU1JRUE9OTUxL
+SklIR0ZFRENCQUA/Pj08Ozo5ODc2NTQzMjEwLy4tLCsqKSgnJiUkIyIhIB8eHRwbGhkYFxYVFBMS
+ERAPDg0MCwoJCAcGBQQDAgEAACH5BAEAABcALAAAAAAQABAAAAVn4CUiYlmS5qKaorqUURyb8kzd
+OCXm+FX9wGCwBCkWBwNjkdVoNg4HZ4MlUlgDAauCKrJ4CQSvhcsoMwAAM4P1aLcLBXe7JKnbBQK7
+/TLp+ycif34XDoWFJoaHIgmMVIwJLAZcF5IiIQA7');
+#my $cancel_image = $mw->Photo(-file => 'icons/cancel.gif');
+my $cancel_image = $mw->Photo(-data => 'R0lGODlhEAAQAMQXAL8AANoAAKwAAKMAALcAAPHBwZkAAODCwtMAAKgAANsAAK8AAL4AALYAAKEA
+AMUAAOkAAPgAAOIAAPEAAMwAAP8AAP///+7u7gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH/C1hN
+UCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtj
+OWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUg
+WE1QIENvcmUgNS4wLWMwNjAgNjEuMTM0Nzc3LCAyMDEwLzAyLzEyLTE3OjMyOjAwICAgICAgICAi
+PiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5
+bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6
+Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29t
+L3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NU
+eXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IFdp
+bmRvd3MiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6RUU5MDE4OEMxQkRDMTFFODk1NkFGQzRC
+NTYzQjg5MjQiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6RUU5MDE4OEQxQkRDMTFFODk1NkFG
+QzRCNTYzQjg5MjQiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlp
+ZDpFRTkwMTg4QTFCREMxMUU4OTU2QUZDNEI1NjNCODkyNCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1w
+LmRpZDpFRTkwMTg4QjFCREMxMUU4OTU2QUZDNEI1NjNCODkyNCIvPiA8L3JkZjpEZXNjcmlwdGlv
+bj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PgH//v38+/r5+Pf2
+9fTz8vHw7+7t7Ovq6ejn5uXk4+Lh4N/e3dzb2tnY19bV1NPS0dDPzs3My8rJyMfGxcTDwsHAv769
+vLu6ubi3trW0s7KxsK+urayrqqmop6alpKOioaCfnp2cm5qZmJeWlZSTkpGQj46NjIuKiYiHhoWE
+g4KBgH9+fXx7enl4d3Z1dHNycXBvbm1sa2ppaGdmZWRjYmFgX15dXFtaWVhXVlVUU1JRUE9OTUxL
+SklIR0ZFRENCQUA/Pj08Ozo5ODc2NTQzMjEwLy4tLCsqKSgnJiUkIyIhIB8eHRwbGhkYFxYVFBMS
+ERAPDg0MCwoJCAcGBQQDAgEAACH5BAEAABcALAAAAAAQABAAAAVi4CWOZCkWVaquaSFGcCzL4mTf
+OC5CfO/7IolwSCSKFMhkIJBMihBQi3QqhSJElCyVmqWIHuAwABAOixjoNIGQTosa8LhAEI+LFvj8
+YJDPixKAgQYGgYEiBw6JiouJByaPJCEAOw==');
+#my $processing_gif = $mw->Animation(-format => 'gif', -file => 'icons/working.gif');
+my $processing_gif = $mw->Animation(-format => 'gif', -data => 'R0lGODlhHwAQAJEAABfQAKCgoO7u7gAAACH/C05FVFNDQVBFMi4wAwEAAAAh/wtYTVAgRGF0YVhN
+UDw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4
+OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3Jl
+IDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpS
+REYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMj
+Ij4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRv
+YmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4w
+L21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNv
+dXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBXaW5kb3dzIiB4
+bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjA2MEQ5RUM2MDkyNzExRTg5QUJEOEZBNEQwNDNGNTFB
+IiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjA2MEQ5RUM3MDkyNzExRTg5QUJEOEZBNEQwNDNG
+NTFBIj4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6MDYwRDlF
+QzQwOTI3MTFFODlBQkQ4RkE0RDA0M0Y1MUEiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6MDYw
+RDlFQzUwOTI3MTFFODlBQkQ4RkE0RDA0M0Y1MUEiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRm
+OlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4B//79/Pv6+fj39vX08/Lx8O/u
+7ezr6uno5+bl5OPi4eDf3t3c29rZ2NfW1dTT0tHQz87NzMvKycjHxsXEw8LBwL++vby7urm4t7a1
+tLOysbCvrq2sq6qpqKempaSjoqGgn56dnJuamZiXlpWUk5KRkI+OjYyLiomIh4aFhIOCgYB/fn18
+e3p5eHd2dXRzcnFwb25tbGtqaWhnZmVkY2JhYF9eXVxbWllYV1ZVVFNSUVBPTk1MS0pJSEdGRURD
+QkFAPz49PDs6OTg3NjU0MzIxMC8uLSwrKikoJyYlJCMiISAfHh0cGxoZGBcWFRQTEhEQDw4NDAsK
+CQgHBgUEAwIBAAAh+QQEMgAAACwAAAAAHwAQAAACR5SPqYvhLh6UIUr7TNXx1N2Bn8dxYmeSJxqq
+blqe8tvG9AjX6Jzj+sb7sXzA2/C4ChKRJGbPuTMqj9DlFDO5ULCfC+MLRhQAACH5BAQyAAAALAIA
+AgADAAwAAAIFhI+pywUAIfkEBDIAAAAsCAACAAMADAAAAgWEj6nLBQAh+QQEMgAAACwOAAIAAwAM
+AAACBYSPqcsFACH5BAQyAAAALBQAAgADAAwAAAIFhI+pywUAIfkEBDIAAAAsGgACAAMADAAAAgWE
+j6nLBQAh+QQEMgAAACwCAAIAAwAMAAACBZSPqcsFACH5BAQyAAAALAgAAgADAAwAAAIFlI+pywUA
+IfkEBDIAAAAsDgACAAMADAAAAgWUj6nLBQAh+QQEMgAAACwUAAIAAwAMAAACBZSPqcsFADs=');
+
 
 my $L_center_col2_1_entry;
 my $L_center_col2_2_entry;
 
-# >>> 'About' window constructors <<<
+#------------------------------------------#
+#    CAPS markers filtration - window      #
+#------------------------------------------#
+my $Caps_Filtration_Window = $mw->Toplevel(-title => 'CAPS markers filtration');
+$Caps_Filtration_Window->withdraw;
+$Caps_Filtration_Window->iconimage($logo);
+$Caps_Filtration_Window->resizable(1,1);
+$Caps_Filtration_Window->geometry("+0+0");
+
+
+# NoteBook activation
+my $nb = $Caps_Filtration_Window->NoteBook(
+	-relief => 'raised',
+	-bd => 1,
+	-dynamicgeometry => 1
+)->pack(-expand => 1, -padx => 2, -pady => 4, -fill => 'both');
+
+# NoteBook pages
+my $genotype_filtration = $nb->add(
+	'gf',
+	-label => 'Filtration by genotype',
+	-anchor => 'nw',
+	-raisecmd => sub {
+		$Caps_Filtration_Window->minsize(700,591);
+		$Caps_Filtration_Window->maxsize(0,0);
+		$mw->update;
+	}
+);
+
+my $singleCut_filtration = $nb->add(
+	'scf',
+	-label => 'Filtration by cut-site',
+	-anchor => 'nw',
+	-raisecmd => sub {
+		$Caps_Filtration_Window->minsize(420,150);
+		$Caps_Filtration_Window->maxsize(420,150);
+#		$Caps_Filtration_Window->maxsize(0,0);
+		$mw->update;
+	}
+);
+
+my $caps_to_fasta = $nb->add(
+	'c2f',
+	-label => 'CAPS to FASTA',
+	-anchor => 'nw',
+	-raisecmd => sub {
+		$Caps_Filtration_Window->minsize(420,150);
+		$Caps_Filtration_Window->maxsize(420,150);
+#		$Caps_Filtration_Window->maxsize(0,0);
+		$mw->update;
+	}
+);
+
+
+
+# NoteBook - genotype filtration
+my $cfw_gf_inputFile_check;
+my $cfw_gf_inputFile_frame = $genotype_filtration->Frame->pack(-side => 'top', -fill => 'x');
+my $cfw_gf_title_frame = $genotype_filtration->Frame->pack(-side => 'top', -fill => 'x');
+my $cfw_gf_options_frame = $genotype_filtration->Frame->pack(-side => 'top', -fill => 'x');
+my $cfw_gf_input_frame = $genotype_filtration->Frame->pack(-expand => 1, -side => 'top', -fill => 'both');
+
+$cfw_gf_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_gf_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
+my $cfw_gf_inputFile_entry = $cfw_gf_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_gf_input_file)->pack(-side => 'left');
+my $cfw_gf_inputFile_chooseFile_button = $cfw_gf_inputFile_frame->Button(
+	-text => 'D',
+	-image => $folder_image,
+	-command => sub { fileDialog($mw,"vcf2caps_output") }
+)->pack(-side => 'left');
+my $cfw_gf_inputFile_analyze_button;
+my $cfw_gf_start_button;
+$cfw_gf_inputFile_analyze_button = $cfw_gf_inputFile_frame->Button(
+	-text => 'D',
+	-image => $analyze_image,
+	-command => sub {
+		if (defined $cfw_gf_input_file and -e $cfw_gf_input_file and $jobID == 0)
+		{
+			start_vcf2capsOutput_check('gf');
+			$cfw_gf_inputFile_analyze_button->configure(-state => 'disabled');
+			$cfw_gf_inputFile_chooseFile_button->configure(-state => 'disabled');
+		}
+		elsif (defined $cfw_gf_input_file and !-e $cfw_gf_input_file)
+		{
+			$cfw_gf_inputFile_check->configure(-text => 'The file does not exist', -foreground => 'red', -image => '');
+			$cfw_gf_start_button->configure(-state => 'disabled');
+		}
+		
+		
+	}
+)->pack(-side => 'left');
+$cfw_gf_inputFile_check = $cfw_gf_inputFile_frame->Label(
+	-text => 'none',
+	-foreground => 'grey',
+)->pack(-side => 'left', -padx => 5);
+
+
+$cfw_gf_title_frame->Label(
+	-text => 'To filter CAPS markers that differentiates specific individuals, paste into the following text fields space-, tab- or comma-separated names of individuals.
+
+Below you can choose the way how CAPS markers will be selected:',
+	-wraplength => 600,
+	-justify => 'left'
+	)->pack(-side => 'left', -padx => 5, -pady => 5);
+
+my $cfw_gf_option_1 = $cfw_gf_options_frame->Radiobutton(
+	-text => 'Only one group corresponds to the specific marker\'s genotype',
+	-value => 1,
+	-variable => \$oneFiltGroup_twoGenotypes
+	)->pack(-side => 'left', -padx => 5, -pady => 5);
+my $cfw_gf_option_2 = $cfw_gf_options_frame->Radiobutton(
+	-text => 'Each group corresponds to the specific marker\'s genotype',
+	-value => 0,
+	-variable => \$oneFiltGroup_twoGenotypes
+	)->pack(-side => 'left', -padx => 5, -pady => 5);
+$cfw_gf_option_1->select();
+	
+my $cfw_gf_group_1_labelFrame = $cfw_gf_input_frame->Labelframe(-text => 'Group 1')->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5);
+my $cfw_gf_group_1_text = $cfw_gf_group_1_labelFrame->Scrolled('Text', -scrollbars => 'e', -insertwidth => 1, -wrap => 'word', -foreground => 'black' , -background => 'white', -relief => 'groove', -pady => 5, -padx => 5, -height => 5, width => 60)->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5, -side => 'left');
+$cfw_gf_group_1_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
+my $cfw_gf_group1_properties_frame = $cfw_gf_group_1_labelFrame->Frame()->pack();
+my $cfw_gf_group_1_maxError_entry = $cfw_gf_group1_properties_frame->Entry(
+	-width => 5,
+	-insertwidth => 2,
+	-justify => 'right',
+	-state => 'normal',
+	-textvariable => \$cfw_group_1_maxError_value
+	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
+$cfw_gf_group1_properties_frame->Label(-text => '%  Max mismatches')->pack(-pady => 5);;
+$cfw_gf_group_1_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_1_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
+
+my $cfw_gf_group_2_labelFrame = $cfw_gf_input_frame->Labelframe(-text => 'Group 2')->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5);
+my $cfw_gf_group_2_text = $cfw_gf_group_2_labelFrame->Scrolled('Text', -scrollbars => 'e', -insertwidth => 1, -wrap => 'word', -foreground => 'black' , -background => 'white', -relief => 'groove', -pady => 5, -padx => 5, -height => 5, width => 60)->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5, -side => 'left');
+$cfw_gf_group_2_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
+my $cfw_gf_group2_properties_frame = $cfw_gf_group_2_labelFrame->Frame()->pack();
+my $cfw_gf_group_2_maxError_entry = $cfw_gf_group2_properties_frame->Entry(
+	-width => 5,
+	-insertwidth => 2,
+	-justify => 'right',
+	-state => 'normal',
+	-textvariable => \$cfw_gf_group_2_maxError_value
+	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
+$cfw_gf_group2_properties_frame->Label(-text => '%  Max mismatches')->pack(-pady => 5);
+$cfw_gf_group_2_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_2_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
+
+
+my $cfw_gf_group_3_labelFrame = $cfw_gf_input_frame->Labelframe(-text => 'Group 3')->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5);
+my $cfw_gf_group_3_text = $cfw_gf_group_3_labelFrame->Scrolled('Text', -scrollbars => 'e', -insertwidth => 1, -wrap => 'word', -foreground => 'black' , -background => 'white', -relief => 'groove', -pady => 5, -padx => 5, -height => 5, width => 60)->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5, -side => 'left');
+
+$cfw_gf_group_3_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
+my $cfw_gf_group3_properties_frame = $cfw_gf_group_3_labelFrame->Frame()->pack();
+my $cfw_gf_group_3_maxError_entry = $cfw_gf_group3_properties_frame->Entry(
+	-width => 5,
+	-insertwidth => 2,
+	-justify => 'right',
+	-state => 'normal',
+	-textvariable => \$cfw_gf_group_3_maxError_value
+	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
+$cfw_gf_group3_properties_frame->Label(-text => '%  Max mismatches')->pack(-pady => 5);;
+$cfw_gf_group_3_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_3_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
+
+sub cfw_gf_groupsNo_checker
+{
+	my $cfw_group_1_value = $cfw_gf_group_1_text->get('1.0', 'end-1c');
+	my $cfw_group_2_value = $cfw_gf_group_2_text->get('1.0', 'end-1c');
+	my $cfw_group_3_value = $cfw_gf_group_3_text->get('1.0', 'end-1c');
+	
+	if ( $cfw_group_1_value ne "" and $cfw_group_2_value ne "" and $cfw_group_3_value ne "" )
+	{
+		$cfw_gf_option_2->configure(-value => 1);
+		$cfw_gf_option_1->configure(-value => 0);
+		$cfw_gf_option_1->configure(-state => 'disabled');
+	}
+	else
+	{
+		$cfw_gf_option_1->configure(-state => 'normal');
+	}
+}
+
+
+$cfw_gf_start_button = $cfw_gf_input_frame->Button(
+	-text => 'Start filtration',
+	-state => 'disabled',
+	-command => \&start_caps_filtration
+	)->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+
+my $cfw_gf_error_label = $cfw_gf_input_frame->Label();
+my $cfw_gf_progress_frame = $cfw_gf_input_frame->Frame;
+my $cfw_gf_stop_button = $cfw_gf_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');
+my $cfw_gf_progress_textFrame = $cfw_gf_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
+my $cfw_gf_result_label = $cfw_gf_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
+my $cfw_gf_progressBar = $cfw_gf_progress_textFrame->ProgressBar(-variable => \$cfw_gf_CAPS_filtering_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
+$cfw_gf_progress_textFrame->windowCreate('end', -window => $cfw_gf_progressBar);
+my $cfw_gf_progress_label = $cfw_gf_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
+
+$Caps_Filtration_Window->protocol('WM_DELETE_WINDOW' => sub { $Caps_Filtration_Window->withdraw } );
+
+
+# NoteBook - single-cut filtration
+my $cfw_scf_inputFile_check;
+my $cfw_scf_inputFile_frame = $singleCut_filtration->Frame->pack(-side => 'top', -fill => 'x');
+$cfw_scf_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_scf_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
+my $cfw_scf_inputFile_entry = $cfw_scf_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_scf_input_file)->pack(-side => 'left');
+my $cfw_scf_inputFile_chooseFile_button = $cfw_scf_inputFile_frame->Button(
+	-text => 'D',
+	-image => $folder_image,
+	-command => sub { fileDialog($mw,"scf_vcf2caps_output") }
+)->pack(-side => 'left');
+my $cfw_scf_inputFile_analyze_button;
+my $cfw_scf_start_button;
+$cfw_scf_inputFile_analyze_button = $cfw_scf_inputFile_frame->Button(
+	-text => 'D',
+	-image => $analyze_image,
+	-command => sub {
+		if (defined $cfw_scf_input_file and -e $cfw_scf_input_file and $jobID == 0)
+		{
+			start_vcf2capsOutput_check('scf');
+			$cfw_scf_inputFile_analyze_button->configure(-state => 'disabled');
+			$cfw_scf_inputFile_chooseFile_button->configure(-state => 'disabled');
+		}
+		elsif (defined $cfw_scf_input_file and !-e $cfw_scf_input_file)
+		{
+			$cfw_scf_inputFile_check->configure(-text => 'The file does not exist', -foreground => 'red', -image => "");
+			$cfw_scf_start_button->configure(-state => 'disabled');
+		}
+		
+		
+	}
+)->pack(-side => 'left');
+$cfw_scf_inputFile_check = $cfw_scf_inputFile_frame->Label(
+	-wraplength => 120,
+	-justify => 'left',
+	-text => 'none',
+	-foreground => 'grey',
+)->pack(-side => 'left', -padx => 5);
+
+my $cfw_scf_start_frame = $singleCut_filtration->Frame->pack(-side => 'top', -fill => 'x');
+
+$cfw_scf_start_button = $cfw_scf_start_frame->Button(
+	-text => 'Start filtration',
+	-state => 'disabled',
+	-command => sub {
+		$cfw_scf_start_button->configure(-state => 'disabled');
+		start_singleCut_filter();
+	}
+	)->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+
+my $cfw_scf_error_label = $cfw_scf_start_frame->Label(-wraplength => 300, -justify => 'left');
+my $cfw_scf_progress_frame = $cfw_scf_start_frame->Frame;
+my $cfw_scf_stop_button = $cfw_scf_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');
+my $cfw_scf_progress_textFrame = $cfw_scf_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
+my $cfw_scf_result_label = $cfw_scf_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
+my $cfw_scf_progressBar = $cfw_scf_progress_textFrame->ProgressBar(-variable => \$cfw_scf_CAPS_filtering_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
+$cfw_scf_progress_textFrame->windowCreate('end', -window => $cfw_scf_progressBar);
+my $cfw_scf_progress_label = $cfw_scf_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
+
+# NoteBook - CAPS to FASTA
+my $cfw_c2f_inputFile_check;
+my $cfw_c2f_inputFile_frame = $caps_to_fasta->Frame->pack(-side => 'top', -fill => 'x');
+$cfw_c2f_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_c2f_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
+my $cfw_c2f_inputFile_entry = $cfw_c2f_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_c2f_input_file)->pack(-side => 'left');
+my $cfw_c2f_inputFile_chooseFile_button = $cfw_c2f_inputFile_frame->Button(
+	-text => 'D',
+	-image => $folder_image,
+	-command => sub { fileDialog($mw,"c2f_vcf2caps_output") }
+)->pack(-side => 'left');
+my $cfw_c2f_inputFile_analyze_button;
+my $cfw_c2f_start_button;
+$cfw_c2f_inputFile_analyze_button = $cfw_c2f_inputFile_frame->Button(
+	-text => 'D',
+	-image => $analyze_image,
+	-command => sub {
+		if (defined $cfw_c2f_input_file and -e $cfw_c2f_input_file and $jobID == 0)
+		{
+			start_vcf2capsOutput_check('c2f');
+			$cfw_c2f_inputFile_analyze_button->configure(-state => 'disabled');
+			$cfw_c2f_inputFile_chooseFile_button->configure(-state => 'disabled');
+		}
+		elsif (defined $cfw_c2f_input_file and !-e $cfw_c2f_input_file)
+		{
+			$cfw_c2f_inputFile_check->configure(-text => 'The file does not exist', -foreground => 'red', -image => "");
+			$cfw_c2f_start_button->configure(-state => 'disabled');
+		}
+		
+		
+	}
+)->pack(-side => 'left');
+$cfw_c2f_inputFile_check = $cfw_c2f_inputFile_frame->Label(
+	-wraplength => 120,
+	-justify => 'left',
+	-text => 'none',
+	-foreground => 'grey',
+)->pack(-side => 'left', -padx => 5);
+
+my $cfw_c2f_start_frame = $caps_to_fasta->Frame->pack(-side => 'top', -fill => 'x');
+
+$cfw_c2f_start_button = $cfw_c2f_start_frame->Button(
+	-text => 'Start convertion',
+	-state => 'disabled',
+	-command => sub {
+		$cfw_c2f_start_button->configure(-state => 'disabled');
+		start_caps_to_fasta_convertion();
+	}
+	)->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+
+my $cfw_c2f_error_label = $cfw_c2f_start_frame->Label(-wraplength => 250, -justify => 'left');
+my $cfw_c2f_progress_frame = $cfw_c2f_start_frame->Frame;
+my $cfw_c2f_stop_button = $cfw_c2f_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');
+my $cfw_c2f_progress_textFrame = $cfw_c2f_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
+my $cfw_c2f_result_label = $cfw_c2f_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
+my $cfw_c2f_progressBar = $cfw_c2f_progress_textFrame->ProgressBar(-variable => \$cfw_c2f_convertion_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
+$cfw_c2f_progress_textFrame->windowCreate('end', -window => $cfw_c2f_progressBar);
+my $cfw_c2f_progress_label = $cfw_c2f_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
+
+
+
+
+
+#-----------------------------#
+# 'About' window constructors #
+#-----------------------------#
+
 $mw->fontCreate('title', -family => 'arial', -size => 12, -weight => 'bold');
 $mw->fontCreate('text', -family => 'arial', -size => 8);
 $mw->fontCreate('text_b', -family => 'arial', -size => 8, -weight => 'bold');
 $mw->fontCreate('hyper', -family => 'arial', -size => 8);
 
-my $about_window = $mw->Toplevel(-title => 'About vcf2caps');
+
+my $about_window = $mw->Toplevel(-title => 'About VCF2CAPS');
+$about_window->withdraw;
+$about_window->iconimage($logo);
 $about_window->resizable(0,0);
 my $about_text = $about_window->Text(-cursor => 'left_ptr', -width => 50, -height => 14, -insertwidth => 0, -insertontime => 0, -insertofftime => 0, -wrap => 'word', -background => 'gray95')->pack();
 $about_text->tagConfigure('title_center', -justify => 'center', -font => 'title');
@@ -105,25 +776,28 @@ $about_text->tagConfigure('hyperlink', -underline => 0, -font => 'text', -foregr
 $about_text->tagBind('hyperlink', '<Any-Enter>' => sub { $about_text->tagConfigure('hyperlink', -underline => 1, -font => 'text') } );
 $about_text->tagBind('hyperlink', '<Any-Leave>' => sub { $about_text->tagConfigure('hyperlink', -underline => 0, -font => 'text') } );
 $about_text->tagBind('hyperlink', '<Button-1>' => sub {
-	open_hyperlink("http://google.pl");
+	open_hyperlink("https://github.com/Aviatore/vcf2caps");
 } );
 $about_text->insert('end',"\n");
-$about_text->insert('end',"vcf2caps v2.0\n", 'title_center');
+$about_text->insert('end',"VCF2CAPS v2.0\n", 'title_center');
 $about_text->insert('end',"Copyright \x{00A9} 2018\n\n", 'text_center');
 $about_text->insert('end',"Free, open-source CAPS mining software from VCF files.\n", 'text_center');
-$about_text->insert('end', "http://google.pl\n\n", 'hyperlink');
-$about_text->insert('end',"Agricultural University of Krakow, Poland\n\n", 'text_center');
+$about_text->insert('end'," ", 'text_center');
+$about_text->insert('end', "https://github.com/Aviatore/vcf2caps", 'hyperlink');
+$about_text->insert('end',"\n\nUniversity of Agriculture in Krakow, Poland\n\n", 'text_center');
 $about_text->insert('end',"Programmed by Wojciech Weso\x{0142}owski\n\n", 'text_center');
 $about_text->insert('end'," ", 'text_center');
 
 my $button_OK = $about_text->Button(-text => 'OK', -width => 10, -command => sub { $about_window->withdraw } );
 $about_text->windowCreate('text_center.last', -window => $button_OK, -align => 'center');
 $about_window->protocol('WM_DELETE_WINDOW' => sub { $about_window->withdraw } );
-$about_window->withdraw;
+
 
 
 # >>> 'Licence' window constructors <<<
 my $licence_window = $mw->Toplevel(-title => 'Licence');
+$licence_window->withdraw;
+$licence_window->iconimage($logo);
 my $licence_text = $licence_window->Scrolled('Text', -scrollbars => 'e', -padx => 10, -pady => 10, -cursor => 'left_ptr', -width => 100, -height => 28, -insertwidth => 0, -insertontime => 0, -insertofftime => 0, -wrap => 'word', -background => 'gray95')->pack(-fill => 'both', -expand => 1);
 $licence_text->tagConfigure('title_center', -justify => 'center', -font => 'title');
 $licence_text->tagConfigure('title_left', -font => 'title');
@@ -312,47 +986,13 @@ $licence_text->insert('end',"17. Interpretation of Sections 15 and 16.\n\n", 'ti
 $licence_text->insert('end',"If the disclaimer of warranty and limitation of liability provided above cannot be given local legal effect according to their terms, reviewing courts shall apply local law that most closely approximates an absolute waiver of all civil liability in connection with the Program, unless a warranty or assumption of liability accompanies a copy of the Program in return for a fee.
 
 END OF TERMS AND CONDITIONS\n\n", 'text');
-$licence_text->insert('end',"How to Apply These Terms to Your New Programs\n\n", 'title_left');
-$licence_text->insert('end',"If you develop a new program, and you want it to be of the greatest possible use to the public, the best way to achieve this is to make it free software which everyone can redistribute and change under these terms.
-
-To do so, attach the following notices to the program. It is safest to attach them to the start of each source file to most effectively state the exclusion of warranty; and each file should have at least the “copyright” line and a pointer to where the full notice is found.
-
-    \<one line to give the program's name and a brief idea of what it does.\>
-    Copyright (C) \<year\>  <name of author>
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see \<https://www.gnu.org/licenses/\>.
-Also add information on how to contact you by electronic and paper mail.
-
-If the program does terminal interaction, make it output a short notice like this when it starts in an interactive mode:
-
-    \<program\>  Copyright (C) \<year\>  <name of author\>
-    This program comes with ABSOLUTELY NO WARRANTY; for details type 'show w'.
-    This is free software, and you are welcome to redistribute it
-    under certain conditions; type 'show c' for details.
-The hypothetical commands 'show w' and 'show c' should show the appropriate parts of the General Public License. Of course, your program's commands might be different; for a GUI interface, you would use an \x{201F}about box\x{201D}.
-
-You should also get your employer (if you work as a programmer) or school, if any, to sign a \x{201F}copyright disclaimer\x{201D} for the program, if necessary. For more information on this, and how to apply and follow the GNU GPL, see <https://www.gnu.org/licenses/\>.
-
-The GNU General Public License does not permit incorporating your program into proprietary programs. If your program is a subroutine library, you may consider it more useful to permit linking proprietary applications with the library. If this is what you want to do, use the GNU Lesser General Public License instead of this License. But first, please read <https://www.gnu.org/licenses/why-not-lgpl.html\>.\n\n", 'text');
-
 
 $licence_text->insert('end'," ", 'text_center');
 
 my $button_OK_lic = $licence_text->Button(-text => 'Close', -width => 10, -command => sub { $licence_window->withdraw } );
 $licence_text->windowCreate('text_center.last', -window => $button_OK_lic, -align => 'center');
 $licence_window->protocol('WM_DELETE_WINDOW' => sub { $licence_window->withdraw } );
-$licence_window->withdraw;
+
 
 
 # >>> Menu START <<<
@@ -361,33 +1001,30 @@ my $file_menu = $menubar->cascade(-label => '~File');
 my $help_menu = $menubar->cascade(-label => '~Help');
 
 my $new_working_directory = $file_menu->command(-label => 'New working directory', -underline => 0, -command => sub { new_working_directory(\$working_dir) } );
-my $download_db = $file_menu->command(-label => 'Download enzyme database', -underline => 0, -command => \&download_enzyme_db);
+my $download_db = $file_menu->command(-label => 'Download enzyme database', -underline => 0, -command => \&start_download_enzyme_db);
 my $save_selected_enzymes = $file_menu->command(-label => 'Save selected enzymes', -underline => 0, -command => sub { fileDialog_save_enzyme($mw) } );
 my $load_selected_enzymes = $file_menu->command(-label => 'Load selected enzymes', -underline => 0, -command => sub { fileDialog_load_enzyme($mw) });
 
 $file_menu->separator;
 $file_menu->command(-label => 'Exit', -underline => 0, -command => sub { exit });
 
-my $licence = $help_menu->command(-label => 'Licence information', -underline => 0, -command => sub { $licence_window->deiconify; $licence_window->raise });
-my $about = $help_menu->command(-label => 'About vcf2caps', -underline => 0, -command => sub { $about_window->deiconify; $about_window->raise } );
+my $licence = $help_menu->command(-label => 'Licence information', -underline => 0, -command => sub { $licence_text->yview(moveto => 0), $licence_window->deiconify; $licence_window->raise });
+my $about = $help_menu->command(-label => 'About VCF2CAPS', -underline => 0, -command => sub { $about_window->deiconify; $about_window->raise } );
 
 
 # >>> Main window <<<
-my $folder_image = $mw->Photo(-file => 'icons/file_add.gif');
-my $analyze_image = $mw->Photo(-file => 'icons/analyze.gif');
-my $ok_image = $mw->Photo(-file => 'icons/ok.gif');
-my $fail_image = $mw->Photo(-file => 'icons/fail.gif');
-my $cancel_image = $mw->Photo(-file => 'icons/cancel.gif');
-
-my $processing_gif = $mw->Animation(-format => 'gif', -file => 'icons/working.gif');
 
 my $top = $mw->Frame->pack(-side => 'top', -fill => 'x');
-my $bottom = $mw->Frame->pack(-side => 'top', -fill => 'both');
+my $bottom = $mw->Frame->pack(-side => 'top', -expand => 1, -fill => 'both');
 
-my $terminal = $bottom->Scrolled('Text', -scrollbars => 'e', -insertwidth => 0, -insertontime => 0, -insertofftime => 0, -wrap => 'word', -foreground => 'gray95' , -background => 'black', -relief => 'groove', -pady => 5, -padx => 5, -height => 15);
+$bottom->Label(-text => 'Running information:')->pack(-side => 'top', -anchor => 'w', -padx => 5);
+
+$terminal = $bottom->Scrolled('Text', -scrollbars => 'e', -insertwidth => 0, -insertontime => 0, -insertofftime => 0, -wrap => 'word', -foreground => 'gray95' , -background => 'black', -relief => 'groove', -pady => 5, -padx => 5, -height => 20);
+
 $terminal->tagConfigure('warning', -foreground => 'red');
 $terminal->tagConfigure('warning_p', -foreground => 'red', -spacing3 => 0);
 $terminal->tagConfigure('mark', -foreground => 'yellow');
+$terminal->tagConfigure('date', -foreground => 'SlateGrey');
 $terminal->tagConfigure('paragraph', -spacing3 => 0);
 $terminal->tagConfigure('stickUP', -spacing1 => 0);
 $terminal->tagConfigure('percent');
@@ -411,7 +1048,7 @@ my $R_frame_selEnzymes_listBox;
 my $R_frame_allEnzymes_listBox = $R_frame_allEnzymes_frame->Scrolled(
 	'Listbox',
 	-scrollbars => 'e',
-	-height => 12,
+	-height => 10,
 	-width => 12,
 	-selectmode => 'extended',
 	-exportselection => 1,
@@ -502,7 +1139,7 @@ my $R_frame_deselectAll_Button = $R_frame_buttons_frame->Button(
 $R_frame_selEnzymes_listBox = $R_frame_selEnzymes_frame->Scrolled(
 	'Listbox',
 	-scrollbars => 'e',
-	-height => 12,
+	-height => 10,
 	-width => 12,
 	-exportselection => 1
 )->pack(-side => 'top');
@@ -603,7 +1240,7 @@ $R_frame_selEnzymes_listBox->bind('<<ListboxSelect>>' => sub {
 		}
 		$R_frame_enzymeProperties_values_text->delete('0.0', 'end');
 		$R_frame_enzymeProperties_values_text->insert('end', $selected_enz_name . "\n");
-		$R_frame_enzymeProperties_values_text->insert('end', join("", @seq) . "\n");
+		$R_frame_enzymeProperties_values_text->insert('end', $data[-1] . "\n");
 		$R_frame_enzymeProperties_values_text->insert('end', $data[0] . "\n");
 		$R_frame_enzymeProperties_values_text->insert('end', $data[2]);
 		
@@ -743,11 +1380,11 @@ my $R_frame_parameters_applyFilters_Button = $R_frame_parameters_frame->Button(
 					}
 					
 					my $x = ( split("\t", $enzymes_db{$enzyme_name}) )[4];
-					if (!defined $x)
-					{
-						print join("\t", $enzymes_db{$enzyme_name});
-						print "\n";
-					}
+#					if (!defined $x)
+#					{
+#						print join("\t", $enzymes_db{$enzyme_name});
+#						print "\n";
+#					}
 				}
 			}
 			
@@ -824,7 +1461,8 @@ $R_frame_enzymeProperties_label_text->tagBind('iso', '<Button-1>', sub {
 		}
 		$R_frame_enzymeProperties_values_text->delete('0.0', 'end');
 		$R_frame_enzymeProperties_values_text->insert('end', $selected_enz_name . "\n");
-		$R_frame_enzymeProperties_values_text->insert('end', join("", @seq) . "\n");
+#		$R_frame_enzymeProperties_values_text->insert('end', join("", @seq) . "\n");
+		$R_frame_enzymeProperties_values_text->insert('end', $data[-1] . "\n");
 		$R_frame_enzymeProperties_values_text->insert('end', $data[0] . "\n");
 		$R_frame_enzymeProperties_values_text->insert('end', $data[2]);
 		
@@ -882,7 +1520,7 @@ $R_frame_enzymeProperties_label_text->tagBind('comp', '<Button-1>', sub {
 		}
 		$R_frame_enzymeProperties_values_text->delete('0.0', 'end');
 		$R_frame_enzymeProperties_values_text->insert('end', $selected_enz_name . "\n");
-		$R_frame_enzymeProperties_values_text->insert('end', join("", @seq) . "\n");
+		$R_frame_enzymeProperties_values_text->insert('end', $data[-1] . "\n");
 		$R_frame_enzymeProperties_values_text->insert('end', $data[0] . "\n");
 		$R_frame_enzymeProperties_values_text->insert('end', $data[2]);
 		
@@ -943,14 +1581,12 @@ my $L_upper_5_4_frame = $L_upper_5_frame->Frame->pack(-side => 'left');
 $L_upper_1_1_frame->Label(-text => 'Input files', -width => 12)->pack(-side => 'top');
 $L_upper_2_1_frame->Label(-text => 'Enzymes', -width => 12)->pack(-side => 'top');
 $L_upper_3_1_frame->Label(-text => 'Reference', -width => 12)->pack(-side => 'top');
-$L_upper_4_1_frame->Label(-text => 'Raw VCF', -width => 12)->pack(-side => 'top');
-$L_upper_5_1_frame->Label(-text => 'Simplified VCF', -width => 12)->pack(-side => 'top');
+$L_upper_4_1_frame->Label(-text => 'VCF', -width => 12)->pack(-side => 'top');
 
 $L_upper_1_2_frame->Label(-text => 'Selected file', -width => 23)->pack(-side => 'top');
 my $enzyme_entry = $L_upper_2_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$enzyme_file_name)->pack(-side => 'top',-pady => 1.3);
 my $reference_entry = $L_upper_3_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$reference_file_name)->pack(-side => 'top',-pady => 1.3);
 my $raw_vcf_entry = $L_upper_4_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$raw_vcf_file_name)->pack(-side => 'top',-pady => 1.3);
-my $vcf_entry = $L_upper_5_2_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$sVCF_file_name)->pack(-side => 'top',-pady => 1.3);
 
 
 
@@ -965,7 +1601,6 @@ $enzyme_chooseFile_button = $L_upper_2_3_frame->Button(
 );
 my $enzyme_analyze_button;
 my $L_lower_col1_mining_button;
-my $L_lower_col2_mining_button;
 $enzyme_analyze_button = $L_upper_2_3_frame->Button(
 	-text => 'D',
 	-image => $analyze_image,
@@ -980,6 +1615,7 @@ $enzyme_analyze_button = $L_upper_2_3_frame->Button(
 		{
 			$enzyme_check->configure(-image => $fail_image);
 		#	$enzyme_check_status->configure(-text => "Error - the file does not exist");
+			curr_time();
 			$terminal->insert('end', "Warning", 'warning');
 			$terminal->insert('end', " - the file does not exist.\n\n");
 			$terminal->see('end');
@@ -1013,6 +1649,7 @@ $reference_analyze_button = $L_upper_3_3_frame->Button(
 		{
 			$reference_check->configure(-image => $fail_image);
 			#$reference_check_status->configure(-text => "Error - the file does not exist");
+			curr_time();
 			$terminal->insert('end', "Warning", 'warning');
 			$terminal->insert('end', " - the file does not exist.\n");
 			$terminal->see('end');
@@ -1035,7 +1672,7 @@ my $raw_vcf_analyze_button;
 $raw_vcf_analyze_button = $L_upper_4_3_frame->Button(
 	-image => $analyze_image,
 	-command => sub {
-		if (defined $raw_vcf_file_name and -e $raw_vcf_file_name and $jobID == 0)
+		if (defined $raw_vcf_file_name and -e $raw_vcf_file_name and $jobID == 0 and $reference_analysis_results[0] == 1)
 		{
 			raw_start_vcf_check();
 			$raw_vcf_analyze_button->configure(-state => 'disabled');
@@ -1043,20 +1680,22 @@ $raw_vcf_analyze_button = $L_upper_4_3_frame->Button(
 		}
 		elsif (defined $raw_vcf_file_name and -e $raw_vcf_file_name and $jobID > 0)
 		{
+			curr_time();
 			$terminal->insert('end', "Warning", 'warning');
 			$terminal->insert('end', " - please, wait until the current running process is finished.\n");
 			$terminal->see('end');
 		}
-		elsif (defined $raw_vcf_file_name and -e $raw_vcf_file_name and $reference_analysis_results[0] == 0)
+		elsif (defined $raw_vcf_file_name and -e $raw_vcf_file_name and !$reference_analysis_results[0] == 1)
 		{
+			curr_time();
 			$terminal->insert('end', "Warning", 'warning');
 			$terminal->insert('end', " - before parsing VCF file, the reference file must first be loaded.\n\n");
 			$terminal->see('end');
 		}
 		elsif (defined $raw_vcf_file_name and !-e $raw_vcf_file_name)
 		{
-			$vcf_check->configure(-image => $fail_image);
-			#$vcf_check_status->configure(-text => "Error - the file does not exist");
+			curr_time();
+			$raw_vcf_check->configure(-image => $fail_image);
 			$terminal->insert('end', "Warning", 'warning');
 			$terminal->insert('end', " - the file does not exist.\n\n");
 			$terminal->see('end');
@@ -1067,67 +1706,8 @@ $raw_vcf_analyze_button = $L_upper_4_3_frame->Button(
 )->pack(
 	-side => 'left'
 );
-my $vcf_chooseFile_button;
-$vcf_chooseFile_button = $L_upper_5_3_frame->Button(
-	-text => 'D',
-	-image => $folder_image,
-	-command => sub { fileDialog($mw,"vcf") }
-)->pack(
-	-side => 'left'
-);
-my $vcf_analyze_button;
-$vcf_analyze_button = $L_upper_5_3_frame->Button(
-	-text => 'D',
-	-image => $analyze_image,
-	-command => sub {
-		if ($snps_seq_len !~ /^[0-9]+$/)
-		{
-			$terminal->insert('end', "Warning", 'warning');
-			$terminal->insert('end', " - something is wrong with the marked parameter value. The parameter must be numerical.\n\n");
-			$terminal->see('end');
-			if ($snps_seq_len !~ /^[0-9]+$/) { $L_center_col2_1_entry->configure(-background => 'red') } else { $L_center_col2_1_entry->configure(-background => 'white') }
-		}
-		else
-		{
-			$L_center_col2_1_entry->configure(-background => 'white');
-			
-			
-			if (defined $sVCF_file_name and -e $sVCF_file_name and $jobID == 0 and $reference_analysis_results[0] == 1)
-			{
-				start_sVCF_check();
-				$vcf_analyze_button->configure(-state => 'disabled');
-				$vcf_chooseFile_button->configure(-state => 'disabled');
-				$L_lower_col1_mining_button->configure(-state => 'disabled');
-				$L_lower_col2_mining_button->configure(-state => 'disabled');
-			}
-			elsif (defined $sVCF_file_name and -e $sVCF_file_name and $jobID > 0 and $reference_analysis_results[0] == 1)
-			{
-				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - please, wait until the current running process is finished.\n");
-				$terminal->see('end');
-			}
-			elsif (defined $sVCF_file_name and -e $sVCF_file_name and $reference_analysis_results[0] == 0)
-			{
-				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - before parsing sVCF file, the reference file must first be loaded.\n\n");
-				$terminal->see('end');
-			}
-			elsif (defined $sVCF_file_name and !-e $sVCF_file_name)
-			{
-				$vcf_check->configure(-image => $fail_image);
-				#$vcf_check_status->configure(-text => "Error - the file does not exist");
-				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - the file does not exist.\n\n");
-				$terminal->see('end');
-			}
-		}
-		
-		
 
-	}
-)->pack(
-	-side => 'left'
-);
+
 
 $L_upper_1_4_frame->Label(
 	-text => 'Status',
@@ -1175,37 +1755,21 @@ $raw_vcf_check_status = $L_upper_4_4_frame->Label(
 	-side => 'left'
 );
 
-$vcf_check = $L_upper_5_4_frame->Label(
-	-text => 'none',
-	-foreground => 'grey',
-)->pack(
-	-side => 'left',
-	-padx => 5
-);
-$vcf_check_status = $L_upper_5_4_frame->Label(
-	-padx => 5
-)->pack(
-	-side => 'left'
-);
 
 #############
 
 my $L_center_col1_frame = $L_center_frame->Frame->pack(-side => 'left', -fill => 'x', -pady => 10, -padx => 5);
 my $L_center_col2_frame = $L_center_frame->Frame->pack(-side => 'left', -fill => 'x');
-my $L_center_col1_1_label = $L_center_col1_frame->Label(-anchor => 'w', -text => "DNA sequence length flanking SNP/indel in the 'snps.txt'")->pack(-side => 'top', -fill => 'x');
-my $L_center_col1_2_label = $L_center_col1_frame->Label(-anchor => 'w', -text => "DNA sequence length flanking SNP/indel in the output file")->pack(-side => 'top', -fill => 'x');
-$L_center_col2_1_entry = $L_center_col2_frame->Entry(-insertwidth => 1, -width => 5, -textvariable => \$snps_seq_len, -justify => 'right')->pack(-side => 'top', -padx => 10);
-$L_center_col2_2_entry = $L_center_col2_frame->Entry(-insertwidth => 1, -width => 5, -textvariable => \$output_seq_len, -justify => 'right')->pack(-side => 'top', -padx => 10);
+#my $L_center_col1_1_label = $L_center_col1_frame->Label(-anchor => 'w', -text => "DNA sequence length flanking SNP/InDel in the 'v2c file'")->pack(-side => 'top', -fill => 'x');
+my $L_center_col1_2_label = $L_center_col1_frame->Label(-anchor => 'w', -text => "DNA sequence length flanking the variant in the output file:")->pack(-side => 'top', -fill => 'x');
+#$L_center_col2_1_entry = $L_center_col2_frame->Entry(-insertwidth => 1, -width => 5, -textvariable => \$snps_seq_len, -justify => 'right')->pack(-side => 'top', -padx => 10);
+$L_center_col2_2_entry = $L_center_col2_frame->Entry(-insertwidth => 1, -width => 5, -textvariable => \$output_seq_len, -justify => 'right')->pack(-side => 'left', -padx => 0);
+$L_center_col2_frame->Label(-text => 'bp')->pack(-side => 'top', -padx => 0);
 my $L_lower_container_frame = $L_lower_frame->Frame->pack(-side => 'top', -fill => 'x');
 my $L_lower_row0_frame = $L_lower_container_frame->Frame->pack(-side => 'top', -fill => 'x');
 my $L_lower_row1_frame = $L_lower_container_frame->Frame->pack(-side => 'top', -fill => 'x');
-my $L_lower_row2_frame = $L_lower_container_frame->Frame->pack(-side => 'top', -fill => 'x');
+my $L_lower_row3_frame = $L_lower_container_frame->Frame->pack(-side => 'top', -fill => 'x');
 
-my $L_lower_col0_allSNPs = $L_lower_row0_frame->Checkbutton(
-	-text => 'Mine CAPS from polymorphic SNPs/indels only',
-	-variable => \$polymorphicSNPsOnly)->pack(-side => 'left', -anchor => 'w');
-
-my $caps_singleCut_result_label;
 $L_lower_col1_mining_button = $L_lower_row1_frame->Button(
 	-text => 'Start CAPS mining',
 	-width => 15,
@@ -1213,6 +1777,7 @@ $L_lower_col1_mining_button = $L_lower_row1_frame->Button(
 	-command => sub {
 		if ($output_seq_len !~ /^[0-9]+$/ or ($custom == 1 and $custom_value !~ /^[0-9,]+$/) )
 		{
+			curr_time();
 			$terminal->insert('end', "Warning", 'warning');
 			$terminal->insert('end', " - something is wrong with the marked parameter value. The parameter must be numerical.\n\n");
 			$terminal->see('end');
@@ -1226,13 +1791,13 @@ $L_lower_col1_mining_button = $L_lower_row1_frame->Button(
 			
 			if ( scalar(@selected_enz_names) > 0 and $enzyme_analysis_results[0] == 1 and $reference_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1 and $jobID == 0)
 			{
-				$caps_singleCut_result_label->packForget; # Usuwa etykietę z wynikami po filtrowaniu single-cut
 				$L_lower_col1_mining_button->configure(-state => 'disabled');
 				$actualSNPNo = 0;
 				start_caps_mining();
 			}
 			elsif ( scalar(@selected_enz_names) == 0 )
 			{
+				curr_time();
 				$terminal->insert('end', "Warning", 'warning');
 				$terminal->insert('end', " - cannot proceed. Please, select some restriction enzymes.\n\n");
 				$terminal->see('end');
@@ -1240,6 +1805,7 @@ $L_lower_col1_mining_button = $L_lower_row1_frame->Button(
 		}
 	}
 )->pack(-side => 'left', -anchor => 'w');
+
 my $caps_mining_progress_frame = $L_lower_row1_frame->Frame;
 my $caps_mining_result_label = $L_lower_row1_frame->Label->pack(-side => 'left', -anchor => 'w');
 my $caps_mining_prepare_enzymes_label = $L_lower_row1_frame->Label();
@@ -1249,100 +1815,58 @@ my $progressBar = $L_lower_col1_mining_textFrame->ProgressBar(-variable => \$cap
 $L_lower_col1_mining_textFrame->windowCreate('end', -window => $progressBar);
 my $caps_mining_progress_label = $caps_mining_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
 
-
-$L_lower_col2_mining_button = $L_lower_row2_frame->Button(
-	-text => 'Select single-cut',
+my $cfw_open_button = $L_lower_row3_frame->Button(
+	-text => 'Filtration utilities',
 	-width => 15,
-	-state => 'disabled',
+	-state => 'normal',
 	-command => sub {
-		if ( scalar(@selected_enz_names) > 0 and $enzyme_analysis_results[0] == 1 and $reference_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1 and $numberOfSNPs > 0 and $jobID == 0)
-		{
-			$L_lower_col2_mining_button->configure(-state => 'disabled');
-			$numberOfSNPsBefore = 0;
-			start_singleCut_filter();
-		}
+		$Caps_Filtration_Window->deiconify;
+		$Caps_Filtration_Window->raise;
+#		$cfw_gf_input_file = $working_dir . "caps_markers.txt";
+#		$cfw_gf_inputFile_entry->xview('end');
 	}
-)->pack(-side => 'left', -anchor => 'w');
-my $caps_singleCut_progress_frame = $L_lower_row2_frame->Frame;
-$caps_singleCut_result_label = $L_lower_row2_frame->Label->pack(-side => 'left', -anchor => 'w');
-my $caps_singleCut_stop_button = $caps_singleCut_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');;
-my $caps_singleCut_textFrame = $caps_singleCut_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
-my $singleCut_progressBar = $caps_singleCut_textFrame->ProgressBar(-variable => \$singleCutSite_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
-$caps_singleCut_textFrame->windowCreate('end', -window => $singleCut_progressBar);
-my $singleCut_progress_label = $caps_singleCut_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
+	)->pack(-side => 'left', -anchor => 'w');
 
-$terminal->pack(-padx => 5, -pady => 5, -fill => 'x');
-$terminal->insert('end', "vcf2CAPS v2.0\n\n");
+
+$terminal->pack(-padx => 5, -pady => 5, -expand => 1, -fill => 'both');
+$terminal->insert('end', "VCF2CAPS v2.0\n\n");
 $terminal->insert('end', "Welcome ...\n\n");
+
+$mw->deiconify;
+$mw->raise;
 
 MainLoop;
 
-# The function to download the enzyme database file.
-sub download_enzyme_db
-{
-	$terminal->insert('end', "Downloading the database from ");
-	$terminal->insert('end', "http://rebase.neb.com/rebase/link_gcg", 'mark');
-	$terminal->insert('end', " ...\n\n");
-	$terminal->see('end');
-	
-	my $url = 'http://rebase.neb.com/rebase/link_gcg';
-	my $file = $working_dir . "link_gcg";
-	print "$file\n";
-	my $response_code = getstore($url, $file);
-	if ($response_code != 200)
-	{
-		$terminal->insert('end', "Warning", 'warning');
-		$terminal->insert('end', " - something went wrong during download.\n\n");
-		$terminal->see('end');
-	}
-	elsif ($response_code == 200)
-	{
-		$terminal->insert('end', "The database file downloaded sucessfully.\n\n");
-		$terminal->see('end');
-		
-		$enzyme_file_name = $file;
-		
-		if (defined $enzyme_file_name and -f $file and $jobID == 0)
-		{
-			
-			start_enzymes_check(); $enzyme_analyze_button->configure(-state => 'disabled');
-		}
-		elsif (defined $enzyme_file_name and !-f $file)
-		{
-			$enzyme_check->configure(-image => $fail_image);
-		#	$enzyme_check_status->configure(-text => "Error - the file does not exist");
-			$terminal->insert('end', "Warning", 'warning');
-			$terminal->insert('end', " - the file does not exist.\n\n");
-			$terminal->see('end');
-		}
-		
-		
-	}
-}
+
 
 # The function to chose a new working directory.
 sub new_working_directory
 {
 	my $working_dir_ref = $_[0];
-	$$working_dir_ref = $mw->chooseDirectory(-initialdir => '.', -title => 'Choose a working directory');
+	my $new_working_dir = $mw->chooseDirectory(-initialdir => '.', -title => 'Choose a working directory');
+#	$$working_dir_ref = $mw->chooseDirectory(-initialdir => '.', -title => 'Choose a working directory');
+#	print "\$^O: $^O\n";
 	if ($^O eq 'MSWin32')
 	{
-		$$working_dir_ref = Encode::encode("windows-1252", $$working_dir_ref);
+#		$$working_dir_ref = Encode::encode("windows-1252", $$working_dir_ref);
+		$new_working_dir = Encode::encode("windows-1252", $new_working_dir);
 	}
 
-	if (!defined $$working_dir_ref)
+	if (!defined $new_working_dir)
 	{
+		curr_time();
 		$terminal->insert('end', "No directory selected.\n\n");
 		$terminal->see('end');
-		$$working_dir_ref = "";
+#		$$working_dir_ref = "";
 	}
 	else
 	{
+		curr_time();
 		$terminal->insert('end', "Selected '");		
-		$terminal->insert('end', "$$working_dir_ref", 'mark');
+		$terminal->insert('end', "$new_working_dir", 'mark');
 		$terminal->insert('end', "' as a working directory.\n\n");
 		$terminal->see('end');
-		$$working_dir_ref = $$working_dir_ref . "/";
+		$$working_dir_ref = $new_working_dir . "/";
 	}
 }
 
@@ -1372,6 +1896,7 @@ sub fileDialog_save_enzyme
 			
 			if ($err == 0)
 			{
+				curr_time();
 				$terminal->insert('end', "The selected enzymes were saved sucessfully to the file '");
 				$file =~ s/.*[\\\/]//g;
 				$terminal->insert('end', "$file", 'mark');
@@ -1380,6 +1905,7 @@ sub fileDialog_save_enzyme
 			}
 			else
 			{
+				curr_time();
 				$terminal->insert('end', "Warning", 'warning');
 				$terminal->insert('end', " - there was a problem during saving the file.\n\n");
 				$terminal->see('end');
@@ -1387,6 +1913,7 @@ sub fileDialog_save_enzyme
 		}
 		else
 		{
+			curr_time();
 			$terminal->insert('end', "Warning", 'warning');
 			$terminal->insert('end', " - the selected enzymes frame is empty. Please, select some enzymes and then try to save them.\n\n");
 			$terminal->see('end');
@@ -1410,7 +1937,23 @@ sub fileDialog_load_enzyme {
 		{
 			my @loaded_enzymes;
 			my $err = 0;
-			open my $fh, '<', $file or $err = 1;
+			my $fh;
+			if ( !open $fh, '<', $file )
+			{
+				my $err_code = $!;
+				my $file_tmp = $file;
+				$file_tmp =~ s/.*[\\\/]//g;
+				curr_time();
+				$terminal->insert('end', "Warning", 'warning');
+				$terminal->insert('end', " - there was a problem during opening the file: '");
+				$terminal->insert('end', "$file_tmp", 'mark');
+				$terminal->insert('end', "'.\n\n");
+				$terminal->see('end');
+				
+				warning_dial("Cannot open the file ::: $err_code");
+				return;
+			}
+			
 				while (<$fh>)
 				{
 					chomp $_;
@@ -1419,99 +1962,104 @@ sub fileDialog_load_enzyme {
 				}
 			close $fh;
 			
-			if ($err == 1)
+			if ($err == 2)
 			{
-				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - there was a problem during opening the file.\n\n");
-				$terminal->see('end');
-			}
-			elsif ($err == 2)
-			{
+				curr_time();
 				$terminal->insert('end', "Warning", 'warning');
 				$terminal->insert('end', " - something is wrong with the file content. Does it really contain the enzymes list?\n\n");
-				$terminal->see('end');
+				$terminal->see('end');				
 			}
-
-			my @loaded_enzymes_OK;
-			my @loaded_enzymes_fail = @loaded_enzymes;
-			foreach my $loaded_enzyme (@loaded_enzymes)
+			else
 			{
-				foreach my $enzyme (@allEnzymesNames)
+				my @loaded_enzymes_OK;
+				my @loaded_enzymes_fail = @loaded_enzymes;
+				foreach my $loaded_enzyme (@loaded_enzymes)
 				{
-					if ($enzyme eq $loaded_enzyme)
+					foreach my $enzyme (@allEnzymesNames)
 					{
-						push @loaded_enzymes_OK, $loaded_enzyme;
-						@loaded_enzymes_fail = grep { $_ ne $loaded_enzyme } @loaded_enzymes_fail;
-						last;
-					}
-				}
-			}
-			
-			@selected_enz_names = ();
-			foreach my $OK (@loaded_enzymes_OK)
-			{
-				push @selected_enz_names, $OK;
-			}
-			
-			$R_frame_selEnzymes_listBox->delete(0, 'end');
-			foreach my $enzyme_name (@selected_enz_names)
-			{
-				$R_frame_selEnzymes_listBox->insert('end', $enzyme_name);
-			}
-			$R_frame_selEnzymes_No->configure(-text => scalar(@selected_enz_names) . " enzymes" );
-			
-			if ( scalar(@loaded_enzymes_fail) > 0 )
-			{
-				my $fail_No = scalar(@loaded_enzymes_fail);
-				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - $fail_No", 'mark');
-				if ($fail_No == 1)
-				{
-					$terminal->insert('end', " enzyme is not present in the database: ");
-					$terminal->insert('end', "$loaded_enzymes_fail[0]", 'mark');
-					$terminal->insert('end', ". The enzyme was discarded from the list.\n\n");
-					$terminal->see('end');
-					
-				}
-				else
-				{
-					$terminal->insert('end', " enzymes are not present in the database: ");
-					for (my $i = 0; $i < scalar(@loaded_enzymes_fail); $i++)
-					{
-						if ($i == scalar(@loaded_enzymes_fail) - 1 )
+						if ($enzyme eq $loaded_enzyme)
 						{
-							$terminal->insert('end', "$loaded_enzymes_fail[$i]", 'mark');
-						}
-						else
-						{
-							$terminal->insert('end', "$loaded_enzymes_fail[$i]", 'mark');
-							$terminal->insert('end', ", ");
+							push @loaded_enzymes_OK, $loaded_enzyme;
+							@loaded_enzymes_fail = grep { $_ ne $loaded_enzyme } @loaded_enzymes_fail;
+							last;
 						}
 					}
-					$terminal->insert('end', ". The enzymes were discarded from the list.\n\n");
-					$terminal->see('end');
 				}
-			}
-			
-			if ( scalar(@loaded_enzymes_OK) > 0 )
-			{
-				my $OK_No = scalar(@loaded_enzymes_OK);
-				$terminal->insert('end', "$OK_No", 'mark');
-				if ( scalar(@loaded_enzymes_OK) == 1 )
+				
+				@selected_enz_names = ();
+				foreach my $OK (@loaded_enzymes_OK)
 				{
-					$terminal->insert('end', " selected enzyme was loaded sucessfully.\n\n");
-					$terminal->see('end');
+					push @selected_enz_names, $OK;
 				}
-				else
+				
+				$R_frame_selEnzymes_listBox->delete(0, 'end');
+				foreach my $enzyme_name (@selected_enz_names)
 				{
-					$terminal->insert('end', " selected enzymes were loaded sucessfully.\n\n");
-					$terminal->see('end');
+					$R_frame_selEnzymes_listBox->insert('end', $enzyme_name);
+				}
+				$R_frame_selEnzymes_No->configure(-text => scalar(@selected_enz_names) . " enzymes" );
+				
+				if ( scalar(@loaded_enzymes_fail) > 0 )
+				{
+					my $fail_No = scalar(@loaded_enzymes_fail);
+					curr_time();
+					$terminal->insert('end', "Warning", 'warning');
+					$terminal->insert('end', " - $fail_No", 'mark');
+					if ($fail_No == 1)
+					{
+						$terminal->insert('end', " enzyme is not present in the database: ");
+						$terminal->insert('end', "$loaded_enzymes_fail[0]", 'mark');
+						$terminal->insert('end', ". The enzyme was discarded from the list.\n\n");
+						$terminal->see('end');
+						
+					}
+					else
+					{
+						$terminal->insert('end', " enzymes are not present in the database: ");
+						for (my $i = 0; $i < scalar(@loaded_enzymes_fail); $i++)
+						{
+							if ($i == scalar(@loaded_enzymes_fail) - 1 )
+							{
+								$terminal->insert('end', "$loaded_enzymes_fail[$i]", 'mark');
+							}
+							else
+							{
+								$terminal->insert('end', "$loaded_enzymes_fail[$i]", 'mark');
+								$terminal->insert('end', ", ");
+							}
+						}
+						$terminal->insert('end', ". The enzymes were discarded from the list.\n\n");
+						$terminal->see('end');
+					}
+				}
+				
+				if ( scalar(@loaded_enzymes_OK) > 0 )
+				{
+					my $OK_No = scalar(@loaded_enzymes_OK);
+					curr_time();
+					$terminal->insert('end', "$OK_No", 'mark');
+					if ( scalar(@loaded_enzymes_OK) == 1 )
+					{
+						$terminal->insert('end', " selected enzyme was loaded sucessfully.\n\n");
+						$terminal->see('end');
+					}
+					else
+					{
+						$terminal->insert('end', " selected enzymes were loaded sucessfully.\n\n");
+						$terminal->see('end');
+					}
 				}
 			}
 		}
+		else
+		{
+			warning_dial('Warning ::: The file could not be loaded.');
+		}
+		
 	}
 	else
 	{
+		curr_time();
 		$terminal->insert('end', "Warning", 'warning');
 		$terminal->insert('end', " - please, load the enzyme database before loading selected enzymes.\n\n");
 		$terminal->see('end');
@@ -1540,10 +2088,13 @@ sub LOG
 		if (-e "log.txt") { unlink "log.txt" }
 		
 		$log_first_use = 1;
-		open my $Ofh, '>>', $working_dir . "log.txt";
+		open my $Ofh, '>>', $working_dir . "log.txt" or warning_dial("Cannot open the file for writing ::: $!");
 			my $date = localtime();
-			print $Ofh "vcf2caps v2.0\n";
-			print $Ofh $date . "\n";
+			my $date_length = split("", $date);
+			print $Ofh "\n#" . "-" x ($date_length + 2) . "#\n";
+			print $Ofh "# VCF2CAPS v2.0" . " " x (($date_length + 4) - 16) . "#\n";
+			print $Ofh "# " . $date . " #\n";
+			print $Ofh "#" . "-" x ($date_length + 2) . "#\n";
 		close $Ofh;
 	}
 	
@@ -1551,9 +2102,212 @@ sub LOG
 #	elsif ($^O eq 'darwin') { $new_line = "\r" }
 #	else { $new_line = "\n" }
 	
-	open my $Ofh, '>>', $working_dir . "log.txt";
+	open my $Ofh, '>>', $working_dir . "log.txt" or warning_dial("Cannot open the file for writing ::: $!");
 		print $Ofh $text . "\n";
 	close $Ofh;
+}
+
+sub start_download_enzyme_db
+{
+	$download_enzyme_db_result = 0;
+	curr_time();
+	$terminal->insert('end', "Downloading the database from ");
+	$terminal->insert('end', "http://rebase.neb.com/rebase/link_gcg", 'mark');
+	$terminal->insert('end', " ...\n\n");
+	$terminal->see('end');
+	
+	my $repeat;
+	$jobID = 14;
+	$repeat = $mw->repeat( 100 => sub {
+		if ( $download_enzyme_db_result != 0 )
+		{
+			if ( $download_enzyme_db_result == 1 )
+			{
+				my $enzyme_file_name_tmp = $enzyme_file_name;
+				$enzyme_entry->delete(0, 'end');
+				$enzyme_entry->insert(0, $enzyme_file_name_tmp);
+				$enzyme_entry->xview('end');
+			
+				curr_time();
+				$terminal->insert('end', "The database file downloaded sucessfully. Loading the database ...\n\n");
+				$terminal->see('end');
+				
+				if (defined $enzyme_file_name and -f $enzyme_file_name and $jobID == 0)
+				{
+					
+					start_enzymes_check(); $enzyme_analyze_button->configure(-state => 'disabled');
+				}
+				elsif (defined $enzyme_file_name and !-f $enzyme_file_name)
+				{
+					$enzyme_check->configure(-image => $fail_image);
+				#	$enzyme_check_status->configure(-text => "Error - the file does not exist");
+					curr_time();
+					$terminal->insert('end', "Warning", 'warning');
+					$terminal->insert('end', " - the file does not exist.\n\n");
+					$terminal->see('end');
+				}
+			}
+			elsif ( $download_enzyme_db_result == 2 )
+			{
+				curr_time();
+				$terminal->insert('end', "Warning", 'warning');
+				$terminal->insert('end', " - something went wrong during download.\n\n");
+				$terminal->see('end');
+			}
+		
+			$repeat->cancel;
+		}
+	} );
+}
+
+sub start_vcf2capsOutput_check
+{
+	my $filtration_type = shift;
+#	print "Start checking vcf2caps output file ...\n";
+	
+	%vcf2capsOutput_results = ();
+	$vcf2capsOutput_results{err_code} = 0;
+	
+	my $repeat;
+	if ($filtration_type eq 'scf')
+	{
+		$jobID = 10;
+		$cfw_scf_inputFile_check->configure(-image => $processing_gif);
+		$processing_gif->start_animation;
+		$repeat = $mw->repeat( 1000 => sub {
+
+			if ( $vcf2capsOutput_results{err_code} != 0 )
+			{
+				$processing_gif->stop_animation;
+				
+				if ( $vcf2capsOutput_results{err_code} == 1 )
+				{
+					$cfw_scf_inputFile_check->configure(-image => $ok_image);
+				}
+				elsif ( $vcf2capsOutput_results{err_code} == 6 )
+				{
+					$cfw_scf_inputFile_check->configure(-image => $warning_image);
+					my $cfw_scf_input_file_tmp = $cfw_scf_input_file;
+					$cfw_scf_input_file_tmp =~ s/.*[\\\/]//g;
+					
+					curr_time();
+					$terminal->insert('end', "Warning", 'warning');
+					$terminal->insert('end', " - cannot open the file: '");
+					$terminal->insert('end', "$cfw_scf_input_file_tmp", 'mark');
+					$terminal->insert('end', "'\n\n");
+					$terminal->see('end');
+					
+					$repeat->cancel;
+					warning_dial("Cannot open the file ::: $vcf2capsOutput_results{err_value}");
+					
+				}
+				else
+				{
+					$cfw_scf_inputFile_check->configure(-image => '', -text => 'Something is wrong with the file format', -foreground => 'red');
+				}
+				
+				$cfw_scf_inputFile_analyze_button->configure(-state => 'normal');
+				$cfw_scf_inputFile_chooseFile_button->configure(-state => 'normal');
+				$cfw_scf_start_button->configure(-state => 'normal');
+				
+				$repeat->cancel;				
+			}
+		} );
+	}
+	elsif ($filtration_type eq 'gf')
+	{
+		$jobID = 9;
+		$cfw_gf_inputFile_check->configure(-image => $processing_gif);
+		$processing_gif->start_animation;
+		$repeat = $mw->repeat( 100 => sub {
+			if ( $vcf2capsOutput_results{err_code} != 0 )
+			{
+				$processing_gif->stop_animation;
+				
+				if ( $vcf2capsOutput_results{err_code} == 1 )
+				{					
+					$cfw_gf_inputFile_check->configure(-image => $ok_image);
+				}
+				elsif ( $vcf2capsOutput_results{err_code} == 6 )
+				{
+					$cfw_gf_inputFile_check->configure(-image => $warning_image);
+					
+					my $cfw_gf_input_file_tmp = $cfw_gf_input_file;
+					$cfw_gf_input_file_tmp =~ s/.*[\\\/]//g;
+					
+					curr_time();
+					$terminal->insert('end', "Warning", 'warning');
+					$terminal->insert('end', " - cannot open the file: '");
+					$terminal->insert('end', "$cfw_gf_input_file_tmp", 'mark');
+					$terminal->insert('end', "'\n\n");
+					$terminal->see('end');
+					
+					$repeat->cancel;
+					
+					warning_dial("Cannot open the file ::: $vcf2capsOutput_results{err_value}");
+				}
+				else
+				{
+					$cfw_gf_inputFile_check->configure(-image => '', -text => 'Something is wrong with the file format', -foreground => 'red');
+				}
+				
+				$cfw_gf_inputFile_analyze_button->configure(-state => 'normal');
+				$cfw_gf_inputFile_chooseFile_button->configure(-state => 'normal');
+				$cfw_gf_start_button->configure(-state => 'normal');
+				
+				$repeat->cancel;
+				
+			}
+		} );
+	}
+	elsif ($filtration_type eq 'c2f')
+	{
+		$jobID = 11;
+		$cfw_c2f_inputFile_check->configure(-image => $processing_gif);
+		$processing_gif->start_animation;
+		$repeat = $mw->repeat( 100 => sub {
+			if ( $vcf2capsOutput_results{err_code} != 0 )
+			{
+				$processing_gif->stop_animation;
+				
+				if ( $vcf2capsOutput_results{err_code} == 1 )
+				{					
+					$cfw_c2f_inputFile_check->configure(-image => $ok_image);
+					
+				}
+				elsif ( $vcf2capsOutput_results{err_code} == 6 )
+				{
+					$cfw_c2f_inputFile_check->configure(-image => $warning_image);
+					
+					my $cfw_c2f_input_file_tmp = $cfw_c2f_input_file;
+					$cfw_c2f_input_file_tmp =~ s/.*[\\\/]//g;
+					
+					curr_time();
+					$terminal->insert('end', "Warning", 'warning');
+					$terminal->insert('end', " - cannot open the file: '");
+					$terminal->insert('end', "$cfw_c2f_input_file_tmp", 'mark');
+					$terminal->insert('end', "'\n\n");
+					$terminal->see('end');
+					
+					$repeat->cancel;
+					warning_dial("Cannot open the file ::: $vcf2capsOutput_results{err_value}");
+					
+				}
+				else
+				{
+					$cfw_c2f_inputFile_check->configure(-image => '', -text => 'Something is wrong with the file format', -foreground => 'red');
+				}
+				
+				$cfw_c2f_inputFile_analyze_button->configure(-state => 'normal');
+				$cfw_c2f_inputFile_chooseFile_button->configure(-state => 'normal');
+				$cfw_c2f_start_button->configure(-state => 'normal');
+				
+				$repeat->cancel;
+				
+			}
+		} );
+	}
+	
 }
 
 # The function that triggers and checks the progress of enzyme database file checking step.
@@ -1588,7 +2342,12 @@ sub start_enzymes_check
 					}
 					
 					$R_frame_allEnzymes_No->configure(-text => scalar(@allEnzymesNames) . " enzymes" );
-					$terminal->insert('end', "Loaded REBASE database (version $enzymes_db{date}) comprising " . scalar(@allEnzymesNames) . " enzymes.\n\n");
+					curr_time();
+					$terminal->insert('end', "Loaded REBASE database (version ");
+					$terminal->insert('end', $enzymes_db{date}, 'mark');
+					$terminal->insert('end', ") comprising ");
+					$terminal->insert('end', scalar(@allEnzymesNames), 'mark');
+					$terminal->insert('end', " enzymes.\n\n");
 					$terminal->see('end');
 					
 					if ($reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
@@ -1600,30 +2359,30 @@ sub start_enzymes_check
 				{
 					$enzyme_check->configure(-image => $fail_image);
 				#	$enzyme_check_status->configure(-text => "Error - something is wrong with the database file.");
+					curr_time();
 					$terminal->insert('end', "Warning", 'warning');
 					$terminal->insert('end', " - something is wrong with the database file.\n\n");
 					$terminal->see('end');
 				}
-				
-				
-#				print "$enzymes_db{date}\n";
-#				foreach my $company ( split("\t", $enzymes_db{companies}) )
-#				{
-#					my @data = split(",", $company);
-#					print "$data[0] -> $data[1]\n";
-#				}
-#				print "EcoRI:\n";
-				
-
-#					my @data = split(",", $enzymes_db{EcoRI});
-#					print "Cut site: $data[0]\n";
-#					print "Sequence: $data[1]\n";
-#					print "Company: $data[4]\n";
+				elsif ($enzyme_analysis_results[0] == 4)
+				{
+					$enzyme_check->configure(-image => $fail_image);
 					
+					curr_time();
+					$terminal->insert('end', "Warning", 'warning');
+					$terminal->insert('end', " - cannot open the enzyme database file.\n\n");
+					$terminal->see('end');	
+				}
+				
 
 				$enzyme_analyze_button->configure(-state => 'normal');
 				$enzyme_chooseFile_button->configure(-state => 'normal');
 				$repeat->cancel;
+				
+				if ( $enzyme_analysis_results[0] == 4 )
+				{
+					warning_dial("Cannot open the file ::: $enzyme_analysis_results[1]");
+				}
 			}
 	#		print "loop: $c\n";
 		} );
@@ -1633,6 +2392,7 @@ sub start_enzymes_check
 	{
 		$enzyme_check->configure(-image => $fail_image);
 		#$enzyme_check_status->configure(-text => "Error - the file does not exist");
+		curr_time();
 		$terminal->insert('end', "Warning", 'warning');
 		$terminal->insert('end', " - the file does not exist.\n\n");
 		$terminal->see('end');
@@ -1645,42 +2405,37 @@ sub start_reference_check
 {
 	if (defined $reference_file_name and -e $reference_file_name)
 	{
-		@reference_analysis_results = (0);
-		$jobID = 1;
 		my $reference_file_name_tmp;
 		$reference_file_name_tmp = $reference_file_name;
-		$reference_file_name_tmp =~ s/\..+$//g;
-		if (-e $reference_file_name_tmp . ".index") { unlink $reference_file_name_tmp . ".index" }
-		$reference_file_name_tmp = $reference_file_name;
-		$reference_file_name_tmp =~ s/.*[\\\/]//g;
+		$reference_file_name_tmp =~ s/.*[\\\/]//g;	
 		
-		$terminal->insert('end', "Start reference file '");
-		$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-		$terminal->insert('end', "' integrity check ...\n\n");
+		my $reference_index_file_name = $reference_file_name;
+		$reference_index_file_name =~ s/\..+$/\.index/g;
+		$reference_index_file_name =~ s/.*[\\\/]//g;				
+		
+		%reference_index_check_result = ();
+		$reference_index_check_result{error_code} = "";
+		$jobID = 13;
+		
+		curr_time();
+		$terminal->insert('end', "Checking MD5 of the reference file, please wait ...\n\n",);
 		$terminal->see('end');
 		
-	#	reference_check();
-		my $repeat;
-		my $c = 0;
 		$reference_check->configure(-image => $processing_gif);
 		$processing_gif->start_animation;
-		$repeat = $mw->repeat( 100 => sub {
-			if ($reference_analysis_results[0] != 0)
+		
+		my $repeat_reference_check;
+		$repeat_reference_check = $mw->repeat( 100 => sub {
+			if ( $reference_index_check_result{error_code} ne "" )
 			{
-				$processing_gif->stop_animation;
-				
-				if ($reference_analysis_results[0] == 1)
+				if ( $reference_index_check_result{error_code} eq "OK" )
 				{
+					$processing_gif->stop_animation;
 					$reference_check->configure(-image => $ok_image);
-				#	$reference_check_status->configure(-text => "OK");
-				
-					
-					$terminal->insert('end', "Integrity of the reference file '");
-					$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-					$terminal->insert('end', "' confirmed. The index file '");
-					$reference_file_name_tmp =~ s/(?<=\.).+$//;
-					$terminal->insert('end', "$reference_file_name_tmp" . "index", 'mark');
-					$terminal->insert('end', "' was created.\n\n");
+					curr_time();
+					$terminal->insert('end', "Using previously created index file: '");
+					$terminal->insert('end', $reference_index_file_name, 'mark',);
+					$terminal->insert('end', "'\n\n");
 					$terminal->see('end');
 					
 					if ($seqExtractor_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
@@ -1688,357 +2443,882 @@ sub start_reference_check
 						$L_lower_col1_mining_button->configure(-state => 'normal');
 					}
 				}
-				elsif ($reference_analysis_results[0] == 3)
+				else
 				{
-					$reference_check->configure(-image => $fail_image);
-				#	$reference_check_status->configure(-text => "Error - duplicated sequence: $reference_analysis_results[1]");
-					$terminal->insert('end', "Warning", 'warning');
-					$terminal->insert('end', " - duplicated sequence: $reference_analysis_results[1].\n\n");
-					$terminal->see('end');
-				}
-				elsif ($reference_analysis_results[0] == 4)
-				{
-					$reference_check->configure(-image => $fail_image);
-					my @err_data = split(",", $reference_analysis_results[1]);
-					$terminal->insert('end', "Warning", 'warning');
-					$terminal->insert('end', " - the refernce file '");
+					if ( $reference_index_check_result{error_code} eq "wrong_md5" )
+					{
+						curr_time();
+						$terminal->insert('end', "The index file:  '");
+						$terminal->insert('end', $reference_index_file_name, 'mark',);
+						$terminal->insert('end', "' in the working direcotry, is related to the different reference file. \n");
+						$terminal->insert('end', "Deleting '");
+						$terminal->insert('end', $reference_index_file_name, 'mark',);
+						$terminal->insert('end', "' ...\n\n");
+						$terminal->see('end');
+						
+						unlink $working_dir . $reference_index_file_name;
+					}
+					elsif ( $reference_index_check_result{error_code} eq "no_md5" )
+					{
+						curr_time();
+						$terminal->insert('end', "The index file:  '");
+						$terminal->insert('end', $reference_index_file_name, 'mark',);
+						$terminal->insert('end', "' in the working direcotry, does not have the md5 hash header.\n");
+						$terminal->insert('end', "Deleting '");
+						$terminal->insert('end', $reference_index_file_name, 'mark',);
+						$terminal->insert('end', "' ...\n\n");
+						$terminal->see('end');
+					}
+					elsif ( $reference_index_check_result{error_code} eq "cannot_open_ref" )
+					{
+						$processing_gif->stop_animation;
+						$reference_check->configure(-image => $warning_image);
+						
+						curr_time();
+						$terminal->insert('end', "Warning", 'warning');
+						$terminal->insert('end', " - cannot open the file: '");
+						$terminal->insert('end', $reference_file_name_tmp, 'mark',);
+						$terminal->insert('end', "'\n\n");
+						$terminal->see('end');
+						
+						$L_lower_col1_mining_button->configure(-state => 'disabled');
+						
+						$repeat_reference_check->cancel;
+						
+						warning_dial("Cannot open the file ::: $reference_index_check_result{error_value}");
+						return;
+					}
+					elsif ( $reference_index_check_result{error_code} eq "cannot_open_index" )
+					{
+						$processing_gif->stop_animation;
+						$reference_check->configure(-image => $warning_image);
+						
+						curr_time();
+						$terminal->insert('end', "Warning", 'warning');
+						$terminal->insert('end', " - cannot open the file: '");
+						$terminal->insert('end', $reference_index_file_name, 'mark',);
+						$terminal->insert('end', "'\n\n");
+						$terminal->see('end');
+						
+						$L_lower_col1_mining_button->configure(-state => 'disabled');
+						
+						$repeat_reference_check->cancel;
+						
+						warning_dial("Cannot open the file ::: $reference_index_check_result{error_value}");
+						return;
+					}
+					
+					if ( -e $working_dir . $reference_index_file_name) { unlink $working_dir . $reference_index_file_name }
+					
+					curr_time();
+					$terminal->insert('end', "Start reference file '");
 					$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-					$terminal->insert('end', "' has different line length in '");
-					$terminal->insert('end', "$err_data[0]", 'mark');
-					$terminal->insert('end', "' at line ");
-					$terminal->insert('end', "$err_data[1]", 'mark');
-					$terminal->insert('end', ".\n\n");
+					$terminal->insert('end', "' integrity check ...\n\n");
 					$terminal->see('end');
+					
+					@reference_analysis_results = (0);
+					$jobID = 1;
+					
+					my $repeat;
+					my $c = 0;
+					$reference_check->configure(-image => $processing_gif);
+					$processing_gif->start_animation;
+					$repeat = $mw->repeat( 100 => sub {
+						if ($reference_analysis_results[0] != 0)
+						{
+							$processing_gif->stop_animation;
+							
+							if ($reference_analysis_results[0] == 1)
+							{
+								$reference_check->configure(-image => $ok_image);
+							#	$reference_check_status->configure(-text => "OK");
+							
+								curr_time();
+								$terminal->insert('end', "Integrity of the reference file '");
+								$terminal->insert('end', "$reference_file_name_tmp", 'mark');
+								$terminal->insert('end', "' confirmed. The index file '");
+								$reference_file_name_tmp =~ s/(?<=\.).+$//;
+								$terminal->insert('end', "$reference_file_name_tmp" . "index", 'mark');
+								$terminal->insert('end', "' was created.\n\n");
+								$terminal->see('end');
+								
+								if ($seqExtractor_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
+								{
+									$L_lower_col1_mining_button->configure(-state => 'normal');
+								}
+							}
+							elsif ($reference_analysis_results[0] == 3)
+							{
+								$reference_check->configure(-image => $fail_image);
+							#	$reference_check_status->configure(-text => "Error - duplicated sequence: $reference_analysis_results[1]");
+								curr_time();
+								$terminal->insert('end', "Warning", 'warning');
+								$terminal->insert('end', " - duplicated sequence: ");
+								$terminal->insert('end', "$reference_analysis_results[1].\n\n", 'mark');
+								$terminal->see('end');
+							}
+							elsif ($reference_analysis_results[0] == 4)
+							{
+								$reference_check->configure(-image => $fail_image);
+								my @err_data = split(",", $reference_analysis_results[1]);
+								curr_time();
+								$terminal->insert('end', "Warning", 'warning');
+								$terminal->insert('end', " - the refernce file '");
+								$terminal->insert('end', "$reference_file_name_tmp", 'mark');
+								$terminal->insert('end', "' has different line length in '");
+								$terminal->insert('end', "$err_data[0]", 'mark');
+								$terminal->insert('end', "' at line ");
+								$terminal->insert('end', "$err_data[1]", 'mark');
+								$terminal->insert('end', ".\n\n");
+								$terminal->see('end');
+							}
+							elsif ($reference_analysis_results[0] == 5)
+							{
+								$reference_check->configure(-image => $fail_image);
+								
+								curr_time();
+								$terminal->insert('end', "Warning", 'warning');
+								$terminal->insert('end', " - cannot open the file '");
+								$terminal->insert('end', "$reference_file_name_tmp", 'mark');
+								$terminal->insert('end', "'.\n\n");
+								$terminal->see('end');								
+							}
+							elsif ($reference_analysis_results[0] == 6)
+							{
+								$reference_check->configure(-image => $fail_image);
+								
+								curr_time();
+								$terminal->insert('end', "Warning", 'warning');
+								$terminal->insert('end', " - cannot create the file '");
+								$terminal->insert('end', "$reference_file_name_tmp.index", 'mark');
+								$terminal->insert('end', "'.\n\n");
+								$terminal->see('end');								
+							}
+							
+							$reference_analyze_button->configure(-state => 'normal');
+							$reference_chooseFile_button->configure(-state => 'normal');
+							$repeat->cancel;
+							
+							if ( $reference_analysis_results[0] == 5 )
+							{
+								warning_dial("Cannot open the file ::: $reference_analysis_results[1]");
+							}
+							elsif ( $reference_analysis_results[0] == 6 )
+							{
+								warning_dial("Cannot create the file ::: $reference_analysis_results[1]");
+							}
+						}
+					} );
 				}
 				
 				$reference_analyze_button->configure(-state => 'normal');
 				$reference_chooseFile_button->configure(-state => 'normal');
-				$repeat->cancel;
+				$repeat_reference_check->cancel;
 			}
-	#		print "loop: $c\n";
-		} );
+		} );	
 	}
 	elsif (defined $reference_file_name)
 	{
 		$reference_check->configure(-image => $fail_image);
-		#$reference_check_status->configure(-text => "Error - the file does not exist");
 		
+		curr_time();
 		$terminal->insert('end', "Warning", 'warning');
 		$terminal->insert('end', " - the file does not exist.\n\n");
 		$terminal->see('end');
 	}
 }
 
-# The function that triggers and checks the progress of VCF to sVCF file convertion step.
+sub start_caps_to_fasta_convertion
+{
+	$cfw_c2f_error_label->packForget;
+	$cfw_c2f_convertion_percent = 0;
+	@caps_to_fasta_result = (0, 0);
+	$caps_filtered = 0;
+	
+	$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+	$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+	$cfw_c2f_progress_frame->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+	
+	curr_time();
+	$terminal->insert('end', "Start convertion of vcf2caps output file into FASTA format ...\n\n");
+	$terminal->see('end');
+	
+	$jobID = 12;
+	
+	my $repeat;
+	$repeat = $mw->repeat( 100 => sub {
+		$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+		
+		if ( $caps_to_fasta_result[0] != 0 )
+		{	
+			my $cfw_c2f_output_file_tmp = $cfw_c2f_output_file;
+			$cfw_c2f_output_file_tmp =~ s/.+\/(.+\.fasta)/$1/;
+			$cfw_c2f_progress_frame->packForget;
+				
+			if ( $caps_to_fasta_result[0] == 1 )
+			{
+				$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+				$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+				
+				
+				
+				$cfw_c2f_error_label->configure(-text => "$caps_to_fasta_result[1] sequences were saved to the file: '$cfw_c2f_output_file_tmp'", -foreground => 'black');
+				$cfw_c2f_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+				
+				curr_time();
+				$terminal->insert('end', "Finished convertion of VCF2CAPS output file into FASTA format.");
+				$terminal->insert('end', " $caps_to_fasta_result[1]", 'mark');
+				$terminal->insert('end', " sequences were saved to the file: '");
+				$terminal->insert('end', "$cfw_c2f_output_file_tmp", 'mark');
+				$terminal->insert('end', "' file\n\n");
+				$terminal->see('end');
+			}
+			elsif ( $caps_to_fasta_result[0] == 2 )
+			{
+				$cfw_c2f_progress_frame->packForget;
+				
+				curr_time();
+				$terminal->insert('end', "Warning",'warning');
+				$terminal->insert('end', " - cannot write to the output file: ");
+				$terminal->insert('end', "$cfw_c2f_output_file_tmp", 'mark');
+				$terminal->insert('end', "'.\n\n");
+				$terminal->see('end');
+			}
+			elsif ( $caps_to_fasta_result[0] == 3 )
+			{
+				$cfw_c2f_progress_frame->packForget;
+				
+				my $cfw_c2f_input_file_tmp = $cfw_c2f_input_file;
+				$cfw_c2f_input_file_tmp =~ s/.*[\\\/]//g;
+				$cfw_c2f_inputFile_check->configure(-image => $warning_image);
+				
+				curr_time();
+				$terminal->insert('end', "Warning",'warning');
+				$terminal->insert('end', " - cannot open the file: ");
+				$terminal->insert('end', "$cfw_c2f_input_file_tmp", 'mark');
+				$terminal->insert('end', "'.\n\n");
+				$terminal->see('end');
+			}
+			
+			$cfw_c2f_start_button->configure(-state => 'normal');	
+			$repeat->cancel;
+			
+			if ( $caps_to_fasta_result[0] == 2 )
+			{
+				warning_dial("Cannot write to the file ::: $caps_to_fasta_result[1]");
+			}
+			elsif ( $caps_to_fasta_result[0] == 3 )
+			{
+				warning_dial("Cannot open the file ::: $caps_to_fasta_result[1]");
+			}
+		}		
+		elsif ( $caps_filtered > 0 and $total_caps_number > 0 )
+		{
+			$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+			$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+		}
+		
+		
+	} );
+}
+
+sub start_caps_filtration
+{
+	$cfw_gf_error_label->packForget;
+	$cfw_gf_CAPS_filtering_percent = 0;
+	$caps_filtration_result[0] = 0;
+	$caps_filtration_result[1] = 0;
+	$caps_filtered = 0;
+	$cfw_gf_start_button->configure(-state => 'disabled');
+	my %cfw_groups_tmp;
+	my $number_of_filters = 0;
+	$cfw_groups{1}{indv} = "";
+	$cfw_groups{2}{indv} = "";
+	$cfw_groups{3}{indv} = "";
+	my $cfw_group_1_value = $cfw_gf_group_1_text->get('1.0', 'end-1c');
+	if ($cfw_group_1_value ne "")
+	{
+#		print "\$cfw_group_1_value: $cfw_group_1_value\n";
+		$cfw_groups{1}{max_err} = $cfw_group_1_maxError_value;
+		$cfw_groups{1}{indv} = $cfw_group_1_value;
+		$number_of_filters++;
+	}
+	
+	my $cfw_group_2_value = $cfw_gf_group_2_text->get('1.0', 'end-1c');
+	if ($cfw_group_2_value ne "")
+	{
+#		print "\$cfw_group_2_value: $cfw_group_2_value\n";
+		$cfw_groups{2}{max_err} = $cfw_gf_group_2_maxError_value;
+		$cfw_groups{2}{indv} = $cfw_group_2_value;
+		$number_of_filters++;
+	}
+	
+	my $cfw_group_3_value = $cfw_gf_group_3_text->get('1.0', 'end-1c');
+	if ($cfw_group_3_value ne "")
+	{
+#		print "\$cfw_group_3_value: $cfw_group_3_value\n";
+		$cfw_groups{3}{max_err} = $cfw_gf_group_3_maxError_value;
+		$cfw_groups{3}{indv} = $cfw_group_3_value;
+		$number_of_filters++;
+	}
+	
+	if ( $number_of_filters <= 1 )
+	{
+		$cfw_gf_error_label->configure(-text => 'You must input at least two groups', -foreground => 'red');
+		$cfw_gf_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+		$cfw_gf_start_button->configure(-state => 'normal');
+		return 1;
+	}
+
+	$jobID = 8;
+	$cfw_gf_CAPS_filtering_percent = ( $caps_filtered / $total_caps_number ) * 100;
+	$cfw_gf_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_gf_CAPS_filtering_percent) );
+	$cfw_gf_progress_frame->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+	
+	curr_time();
+	$terminal->insert('end', "Start CAPS markers filtration by genotype ...\n\n");
+	$terminal->see('end');
+	
+	my $repeat;
+	$repeat = $mw->repeat( 100 => sub {		
+		
+		$cfw_gf_CAPS_filtering_percent = ( $caps_filtered / $total_caps_number ) * 100;
+		
+		if ( $caps_filtration_result[0] != 0 )
+		{
+			my $cfw_gf_output_file_tmp = $cfw_gf_output_file;
+			$cfw_gf_output_file_tmp =~ s/.+\/(.+\.txt)/$1/;
+			
+			if ( $caps_filtration_result[0] == 1 )
+			{
+				$cfw_gf_CAPS_filtering_percent = ( $caps_filtered / $total_caps_number ) * 100;
+				$cfw_gf_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_gf_CAPS_filtering_percent) );
+				
+				$cfw_gf_progress_frame->packForget;
+				
+				if ( $caps_filtration_result[1] > 0 )
+				{
+					$cfw_gf_error_label->configure(-text => "$caps_filtration_result[1] filtered markers were saved to the file: '$cfw_gf_output_file_tmp'", -foreground => 'black');
+					$cfw_gf_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+					
+					curr_time();
+					$terminal->insert('end', "CAPS markers filtration by genotype finished.");
+					$terminal->insert('end', " $caps_filtration_result[1]", 'mark');
+					$terminal->insert('end', " CAPS were saved to the file: '");
+					$terminal->insert('end', "$cfw_gf_output_file_tmp", 'mark');
+					$terminal->insert('end', "' file\n\n");
+					$terminal->see('end');
+					
+				}
+				else
+				{
+					$cfw_gf_error_label->configure(-text => "No CAPS markers were found that meet the specified criteria.", -foreground => 'black');
+					$cfw_gf_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
+					
+					curr_time();
+					$terminal->insert('end', "CAPS markers filtration by genotype finished.\n");
+					$terminal->insert('end', "Warning",'warning');
+					$terminal->insert('end', " - no CAPS markers were found that meet the specified criteria.\n\n");
+					$terminal->see('end');
+				}
+			}
+			elsif ( $caps_filtration_result[0] == 2 )
+			{
+				$cfw_gf_progress_frame->packForget;
+				
+				curr_time();
+				$terminal->insert('end', "Cannot write to the output file: '");				
+				$terminal->insert('end', "$cfw_gf_output_file_tmp", 'mark');
+				$terminal->insert('end', "' file\n\n");
+				$terminal->see('end');
+			}
+			elsif ( $caps_filtration_result[0] == 3 )
+			{
+				$cfw_gf_progress_frame->packForget;
+				$cfw_gf_inputFile_check->configure(-image => $warning_image);
+				
+				my $cfw_gf_input_file_tmp = $cfw_gf_input_file;
+				$cfw_gf_input_file_tmp =~ s/.*[\\\/]//g;
+				
+				curr_time();
+				$terminal->insert('end', "Cannot open the file: '");				
+				$terminal->insert('end', "$cfw_gf_input_file_tmp", 'mark');
+				$terminal->insert('end', "' file\n\n");
+				$terminal->see('end');
+			}
+			
+			$cfw_gf_start_button->configure(-state => 'normal');						
+			$repeat->cancel;
+			
+			if ( $caps_filtration_result[0] == 2 )
+			{
+				warning_dial("Cannot write to the file ::: $caps_filtration_result[1]");
+			}
+			elsif ( $caps_filtration_result[0] == 3 )
+			{
+				warning_dial("Cannot open the file ::: $caps_filtration_result[1]");
+			}
+		}		
+		elsif ( $caps_filtered > 0 and $total_caps_number > 0 )
+		{
+			$cfw_gf_CAPS_filtering_percent = ( $caps_filtered / $total_caps_number ) * 100;
+			$cfw_gf_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_gf_CAPS_filtering_percent) );
+		}
+	} );
+}
+
+# The function that triggers and checks the progress of sVCF to 'snps.txt' file convertion step.
 sub raw_start_vcf_check
 {
-	$raw_vcf_analysis_results{err_code} = 0;
+	%vcf_analysis_results = ();
+	%vcf_analysis_results = (err_code => 0);
+	%v2c_check_result = ();
+	%v2c_check_result = (err_type => "");
 	$jobID = 7;
-	my $repeat;
+	my $c = 0;
 	$raw_vcf_check->configure(-image => $processing_gif);
 	$processing_gif->start_animation;
 	
 	my $raw_vcf_file_name_tmp = $raw_vcf_file_name;
 	$raw_vcf_file_name_tmp =~ s/.*[\\\/]//g;
-	my $raw_vcf_tmp = $raw_vcf_file_name_tmp;
-	$raw_vcf_tmp =~ s/\..+$//g;
-	$raw_vcf_tmp = $raw_vcf_tmp . ".svcf";
+	my $v2c_file_name_tmp = $raw_vcf_file_name_tmp;
+	$v2c_file_name_tmp =~ s/\..+$/\.v2c/;
+
 	
-	if (-e $raw_vcf_tmp) { unlink $raw_vcf_tmp }
+	my $reference_file_name_tmp = $reference_file_name;
+	$reference_file_name_tmp =~ s/.*[\\\/]//g;
 	
-	$terminal->insert('end', "Start VCF file '");
-	$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
-	$terminal->insert('end', "' convertion to sVCF file format ...\n\n");
+	
+	my $next_step = 0;
+	my $repeat_v2c_check;
+	
+	curr_time();
+	$terminal->insert('end', "Checking MD5 of the VCF file, please wait ...\n\n",);
 	$terminal->see('end');
 	
-	$repeat = $mw->repeat( 100 => sub {
-		if ($raw_vcf_analysis_results{err_code} != 0)
+	$repeat_v2c_check = $mw->repeat( 100 => sub {
+		if ( $v2c_check_result{err_type} ne "" )
 		{
-			$processing_gif->stop_animation;
-			
-			if ($raw_vcf_analysis_results{err_code} == 1)
+			if ( $v2c_check_result{err_type} eq "OK" )
 			{
+				$processing_gif->stop_animation;
+			
 				$raw_vcf_check->configure(-image => $ok_image);
 				
-				$terminal->insert('end', "Convertion of the VCF file '");
-				$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
-				$terminal->insert('end', "' completed. The sVCF file was saved in: '");
-				
-				$terminal->insert('end', "$working_dir" . "$raw_vcf_tmp", 'mark');
-				$terminal->insert('end', "'.\n\n");
+				curr_time();
+				$terminal->insert('end', "Using previously created v2c file: '");
+				$terminal->insert('end', $v2c_file_name_tmp, 'mark',);
+				$terminal->insert('end', "'\n\n");
 				$terminal->see('end');
 				
+				if ($reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1)
+				{
+					$L_lower_col1_mining_button->configure(-state => 'normal');
+				}
 				
+				$v2c_file_name = $working_dir . $v2c_file_name_tmp;
 			}
-			elsif ($raw_vcf_analysis_results{err_code} == 2)
+			else
 			{
-				$raw_vcf_check->configure(-image => $fail_image);
-
-				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - the file '");
+				if ( $v2c_check_result{err_type} eq "wrong_vcf_md5" )
+				{
+					curr_time();
+					$terminal->insert('end', "The v2c file:  '");
+					$terminal->insert('end', $v2c_file_name_tmp, 'mark',);
+					$terminal->insert('end', "' in the working direcotry, is related to another VCF file. \n");
+					$terminal->insert('end', "Deleting '");
+					$terminal->insert('end', $v2c_file_name_tmp, 'mark',);
+					$terminal->insert('end', "' ...\n\n");
+					$terminal->see('end');
+					
+					unlink $working_dir . $v2c_file_name_tmp;
+				}
+				elsif ( $v2c_check_result{err_type} eq "wrong_reference_md5" )
+				{
+					my $reference_file_name_tmp = $reference_file_name;
+					$reference_file_name_tmp =~ s/.*[\\\/]//g;
+					curr_time();
+					$terminal->insert('end', "The v2c file:  '");
+					$terminal->insert('end', $v2c_file_name_tmp, 'mark',);
+					$terminal->insert('end', "' in the working direcotry, does not match the selected reference file: '");
+					$terminal->insert('end', $reference_file_name_tmp, 'mark',);
+					$terminal->insert('end', "'.\n");
+					$terminal->insert('end', "Deleting '");
+					$terminal->insert('end', $v2c_file_name_tmp, 'mark',);
+					$terminal->insert('end', "' ...\n\n");
+					$terminal->see('end');
+					
+					unlink $working_dir . $v2c_file_name_tmp;
+				}
+				elsif ( $v2c_check_result{err_type} eq "no_md5" )
+				{
+					curr_time();
+					$terminal->insert('end', "The v2c file:  '");
+					$terminal->insert('end', $v2c_file_name_tmp, 'mark',);
+					$terminal->insert('end', "' in the working direcotry, does not have the md5 hash header.\n");
+					$terminal->insert('end', "Deleting '");
+					$terminal->insert('end', $v2c_file_name_tmp, 'mark',);
+					$terminal->insert('end', "' ...\n\n");
+					$terminal->see('end');
+					
+					unlink $working_dir . $v2c_file_name_tmp;
+				}
+				elsif ( $v2c_check_result{err_type} eq "cannot_open_vcf" )
+				{
+					$processing_gif->stop_animation;			
+					$raw_vcf_check->configure(-image => $warning_image);
+					
+					curr_time();
+					$terminal->insert('end', "Cannot open the file: '");
+					$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
+					$terminal->insert('end', "'\n\n");
+					$terminal->see('end');
+					
+					$raw_vcf_analyze_button->configure(-state => 'normal');
+					$raw_chooseFile_button->configure(-state => 'normal');
+					$repeat_v2c_check->cancel;
+					
+					warning_dial("Cannot open the file ::: $v2c_check_result{err_value}");
+				}
+				elsif ( $v2c_check_result{err_type} eq "cannot_open_v2c" )
+				{
+					$processing_gif->stop_animation;			
+					$raw_vcf_check->configure(-image => $warning_image);
+					
+					curr_time();
+					$terminal->insert('end', "Warning", 'warning');
+					$terminal->insert('end', " - cannot open the file: '");
+					$terminal->insert('end', "$v2c_file_name_tmp", 'mark');
+					$terminal->insert('end', "'\n\n");
+					$terminal->see('end');
+					
+					$raw_vcf_analyze_button->configure(-state => 'normal');
+					$raw_chooseFile_button->configure(-state => 'normal');
+					$repeat_v2c_check->cancel;
+					
+					warning_dial("Cannot open the file ::: $v2c_check_result{err_value}");
+				}
+				
+				if ( $v2c_check_result{err_type} eq "cannot_open_vcf" or $v2c_check_result{err_type} eq "cannot_open_v2c" )
+				{					
+					return;
+				}
+				
+				
+				curr_time();
+				$terminal->insert('end', "Start VCF file '");
 				$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
-				$terminal->insert('end', "' does not have the header '");
-				$terminal->insert('end', "#CHROM",'mark');
-				$terminal->insert('end', "'. Is it really VCF file?\n\n");
+				$terminal->insert('end', "' integrity check ...\n\n");
 				$terminal->see('end');
-			}
-			elsif ($raw_vcf_analysis_results{err_code} == 3)
-			{
-				$raw_vcf_check->configure(-image => $fail_image);
+				
+				$jobID = 3;
+				my $repeat;
+				$repeat = $mw->repeat( 100 => sub {
+					if ($vcf_analysis_results{err_code} != 0)
+					{
+						#$processing_gif->stop_animation;
+						
+						if ($vcf_analysis_results{err_code} == 1)
+						{
+							curr_time();
+							$terminal->insert('end', "Integrity check of the VCF file '");
+							$terminal->insert('end', $raw_vcf_file_name_tmp, 'mark',);
+							$terminal->insert('end', "' confirmed. Statistics:\n- number of individuals: ");
+							$terminal->insert('end', $vcf_analysis_results{NoOfIndv}, 'mark');
+							$terminal->insert('end', "\n- number of SNPs/InDels: ",);
+							$terminal->insert('end', "$vcf_analysis_results{NoOfSNPs}\n\n", 'mark');
+							$terminal->see('end');
+							
+							curr_time();
+							$terminal->insert('end', "Converting the '");
+							$terminal->insert('end', $raw_vcf_file_name_tmp, 'mark');
+							$terminal->insert('end', "' file into '");
+							$terminal->insert('end', $v2c_file_name_tmp, 'mark');
+							$terminal->insert('end', "' file ... ");
+							$terminal->insert('end', "0.0%", 'percent');
+							$terminal->see('end');
+							$next_step = 1;
+							$jobID = 4;
+							@seqExtractor_error_code = ("",0);
+							
+							my $percent_index_start;
+							
+							$percent_index_start = $terminal->search(-regexp, -backwards => '[0-9]+\.[0-9]%', 'end');
+							my $repeat2;
+							$repeat2 = $mw->repeat( 100 => sub {
+								if ($seqExtractor_error_code[1] != 0)
+								{
+#									print "\$seqExtractor_error_code[1]: $seqExtractor_error_code[1]\n";
+									
+#									print "\$line_vcf: $line_vcf\n";
+#									print "\$vcf_analysis_results{NoOfSNPs}: $vcf_analysis_results{NoOfSNPs}\n";
+									
+									my $percent = ( $line_vcf / $vcf_analysis_results{NoOfSNPs}) * 100;
+									my $percent_index_stop = $terminal->search(-regexp, -backwards => '%', 'end');
+									$percent_index_stop += 1;
+									$terminal->delete("$percent_index_start", "$percent_index_stop");
+									$terminal->insert("$percent_index_start", sprintf ("%.1f%%", $percent));
+									
+									$processing_gif->stop_animation;
+									
+									
+									my $sequencesNotPresentInRef_No = scalar(@sequencesNotPresentInRef);
+									my $sequencesNotPresentInRef_No_forReport = scalar(@sequencesNotPresentInRef);
+									my $markersOnTheEdge_No = scalar(@markersOnTheEdge);
+									my $markersOnTheEdge_No_forReport = scalar(@markersOnTheEdge);
+									
+									if ($seqExtractor_error_code[1] == 1 and $sequencesNotPresentInRef_No == 0 and $markersOnTheEdge_No == 0 )
+									{
+										$raw_vcf_check->configure(-image => $ok_image);
+										
+										$terminal->insert('end', "\n\n");
+										curr_time();
+										$terminal->insert('end', "Convertion completed sucessfully.\n\n");
+										$terminal->see('end');
+										
+										
+										
+										if ($reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
+										{
+											$L_lower_col1_mining_button->configure(-state => 'normal');
+										}
+										
+										$v2c_file_name = $working_dir . $v2c_file_name_tmp;
+									}
+									elsif ($seqExtractor_error_code[1] == 1 and $snpsNo > 0 and ($sequencesNotPresentInRef_No > 0 or $markersOnTheEdge_No > 0) )
+									{
+										
+									
+										$raw_vcf_check->configure(-image => $ok_image);
+										
+										$terminal->insert('end', "\n\n");
+										
+										curr_time();
+										$terminal->insert('end', "Warning",'warning');
+										if ( $sequencesNotPresentInRef_No > 0 and $markersOnTheEdge_No > 0)
+										{
+											$terminal->insert('end', " - convertion completed. However, some problems occurred:\n");
+										}
+										else
+										{
+											$terminal->insert('end', " - convertion completed. However, a problem occurred:\n");
+										}
+										
+										if ( $sequencesNotPresentInRef_No > 0 )
+										{
+											if ( $sequencesNotPresentInRef_No <= 5 )
+											{
+												$terminal->insert('end', "Below listed SNPs/InDels were located in the sequences not present in the reference file '");
+												$terminal->insert('end', "$reference_file_name_tmp", 'mark');
+												$terminal->insert('end', "':\n");
+													
+												foreach my $orphanedSeq (@sequencesNotPresentInRef)
+												{
+													$terminal->insert('end', "- ");
+													$terminal->insert('end', "$orphanedSeq\n",'mark');
+												}
+												$terminal->see('end');
+																					
+											}
+											else
+											{
+												LOG("\n# Convertion of VCF file into v2c format");
+												LOG("# SNPs/InDels located in the sequences not present in the reference file $reference_file_name_tmp");
+												foreach my $text (@sequencesNotPresentInRef)
+												{
+													LOG($text);
+												}
+												$terminal->insert('end', "$sequencesNotPresentInRef_No_forReport", 'mark');
+												$terminal->insert('end', " SNPs/InDels were located in the sequences not present in the reference file '");
+												$terminal->insert('end', "$reference_file_name_tmp", 'mark');
+												$terminal->insert('end', "'. The list of those SNPs/InDels were saved in the ");
+												$terminal->insert('end', "log.txt", 'mark');
+												$terminal->insert('end', " file.\n");
+												$terminal->see('end');
+											}
+										}
+										
+										if ( $markersOnTheEdge_No > 0)
+										{															
+											if ( $markersOnTheEdge_No <= 5 )
+											{
+												$terminal->insert('end', "Below listed SNPs/InDels were located closer to the edges of the sequences than ");
+												$terminal->insert('end', "$snps_seq_len", 'mark');
+												$terminal->insert('end', " bp:\n");
+												
+												foreach my $markerOnTheEdge (@markersOnTheEdge)
+												{
+													$terminal->insert('end', "- ");
+													$terminal->insert('end', "$markerOnTheEdge\n",'mark');
+												}
+												$terminal->see('end');
+												
+											}
+											else
+											{
+												LOG("\n# Convertion of VCF file into v2c format");
+												LOG("# SNPs/InDels located closer to the edges of the sequences than 40 bp");
+												foreach my $text (@markersOnTheEdge)
+												{
+													LOG($text);
+												}
+												$terminal->insert('end', "$markersOnTheEdge_No_forReport", 'mark');
+												$terminal->insert('end', " SNPs/InDels were located closer to the edges of the sequences than ");
+												$terminal->insert('end', "$snps_seq_len", 'mark');
+												$terminal->insert('end', " bp:\n");
+												$terminal->insert('end', "The list of those SNPs/InDels were saved in the ");
+												$terminal->insert('end', "log.txt", 'mark');
+												$terminal->insert('end', " file.\n");
+												$terminal->see('end');
+											}
+										}
+										
+										$terminal->insert('end', "\n");
+										$terminal->see('end');
+										
+										if ($reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
+										{
+											$L_lower_col1_mining_button->configure(-state => 'normal');
+										}
+										
+										$v2c_file_name = $working_dir . $v2c_file_name_tmp;
+									}
+									elsif ($seqExtractor_error_code[1] == 3)
+									{
+										$raw_vcf_check->configure(-image => $fail_image);
+										
+										$terminal->insert('end', "\n\n");
+										curr_time();
+										$terminal->insert('end', "Warning", 'warning');
+										$terminal->insert('end', " - cannot open the index file '");
+										$terminal->insert('end', "$reference_file_name_tmp.index", 'mark');
+										$terminal->insert('end', "'.\n\n");
+										$terminal->see('end');
+										
+										unlink($working_dir . $v2c_file_name_tmp) if ( -e $working_dir . $v2c_file_name_tmp );
+									}
+									elsif ($seqExtractor_error_code[1] == 4)
+									{
+										$raw_vcf_check->configure(-image => $fail_image);
+										
+										$terminal->insert('end', "\n\n");
+										curr_time();
+										$terminal->insert('end', "Warning", 'warning');
+										$terminal->insert('end', " - cannot open the VCF file '");
+										$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
+										$terminal->insert('end', "'.\n\n");
+										$terminal->see('end');
+										
+										unlink($working_dir . $v2c_file_name_tmp) if ( -e $working_dir . $v2c_file_name_tmp );
+									}
+									elsif ($seqExtractor_error_code[1] == 5)
+									{
+										$raw_vcf_check->configure(-image => $fail_image);
+										
+										$terminal->insert('end', "\n\n");
+										curr_time();
+										$terminal->insert('end', "Warning", 'warning');
+										$terminal->insert('end', " - cannot write to the file '");
+										$terminal->insert('end', "$v2c_file_name_tmp", 'mark');
+										$terminal->insert('end', "'.\n\n");
+										$terminal->see('end');
+										
+										unlink($working_dir . $v2c_file_name_tmp) if ( -e $working_dir . $v2c_file_name_tmp );
+									}
+									elsif ($snpsNo == 0)
+									{
+										$raw_vcf_check->configure(-image => $fail_image);
+										
+										$terminal->insert('end', "\n\n");
+										curr_time();
+										$terminal->insert('end', "Warning",'warning');
+										$terminal->insert('end', " - convertion failed. Something went horribly wrong. \n");
+										$terminal->insert('end', "Please, check whether you have choosen the right reference file.\n\n");
+										$terminal->see('end');
+										
+										unlink($working_dir . $v2c_file_name_tmp) if ( -e $working_dir . $v2c_file_name_tmp );
+									}
+									
+							
+									
+#									$seqExtractor_error_code[1] = 0;
+									$line_vcf = 0;
+									$repeat2->cancel;
+									
+		#							$raw_vcf_analyze_button->configure(-state => 'normal');
+		#							$raw_chooseFile_button->configure(-state => 'normal');
+									
+									if ( $seqExtractor_error_code[1] == 3 or $seqExtractor_error_code[1] == 4 )
+									{
+										warning_dial("Cannot open the file ::: $seqExtractor_error_code[0]");
+									}
+									if ( $seqExtractor_error_code[1] == 5 )
+									{
+										warning_dial("Cannot write to the file ::: $seqExtractor_error_code[0]");
+									}
+								}
+#								print "\$line_vcf: $line_vcf\t\$vcf_analysis_results{NoOfSNPs}: $vcf_analysis_results{NoOfSNPs}\n";
+								elsif ($line_vcf > 0 and $vcf_analysis_results{NoOfSNPs} > 0)
+								{
+									my $percent = ( ($line_vcf - 1) / $vcf_analysis_results{NoOfSNPs}) * 100;
+									
+									
+									if (!defined $percent_index_start)
+									{
+										$percent_index_start = $terminal->search(-regexp, -backwards => '[0-9]+\.[0-9]%', 'end');
+									}
+#									print "$percent_index_start\n";
+									my $percent_index_stop = $terminal->search(-regexp, -backwards => '%', 'end');
+									$percent_index_stop += 1;
+									$terminal->delete("$percent_index_start", "$percent_index_stop");
+#									$terminal->see("$percent_index");
+									$terminal->insert("$percent_index_start", sprintf ("%.1f%%", $percent));
+								}
+							});
+						}
+						elsif ($vcf_analysis_results{err_code} == 3)
+						{
+							$raw_vcf_check->configure(-image => $fail_image);
+							
+							curr_time();
+							$terminal->insert('end', "Warning", 'warning');
+							$terminal->insert('end', " - the file '");
+							$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
+							$terminal->insert('end', "' does not have the header '");
+							$terminal->insert('end', "#CHROM",'mark');
+							$terminal->insert('end', "'. Is it really VCF file?\n\n");
+							$terminal->see('end');
+							
+		#					$raw_vcf_analyze_button->configure(-state => 'normal');
+		#					$raw_chooseFile_button->configure(-state => 'normal');
+						}
+						elsif ($vcf_analysis_results{err_code} == 6)
+						{
+							$raw_vcf_check->configure(-image => $warning_image);
+							$L_lower_col1_mining_button->configure(-state => 'disabled');
+							
+							curr_time();
+							$terminal->insert('end', "Warning", 'warning');
+							$terminal->insert('end', " - cannot open the file: '");
+							$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
+							$terminal->insert('end', "'. Is it really VCF file?\n\n");
+							$terminal->see('end');
+						}
+						
+						$repeat->cancel;
+						
+						if ($vcf_analysis_results{err_code} == 6)
+						{
+							warning_dial("Cannot open the file ::: $vcf_analysis_results{err_value}");
+						}
+					}
 
-				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - something is wrong with the file '");
-				$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
-				$terminal->insert('end', "'.\n\n");
-				$terminal->see('end');
+				} );
 			}
-			
+
 			$raw_vcf_analyze_button->configure(-state => 'normal');
 			$raw_chooseFile_button->configure(-state => 'normal');
-			$repeat->cancel;
-		}
-	});
-}
-
-# The function that triggers and checks the progress of sVCF to 'snps.txt' file convertion step.
-sub start_sVCF_check
-{
-	%vcf_analysis_results = ();
-	%vcf_analysis_results = (err_code => 0);
-	$jobID = 3;
-	my $repeat;
-	my $c = 0;
-	$vcf_check->configure(-image => $processing_gif);
-	$processing_gif->start_animation;
-	my $sVCF_file_name_tmp = $sVCF_file_name;
-	$sVCF_file_name_tmp =~ s/.*[\\\/]//g;
-	$terminal->insert('end', "Start sVCF file '");
-	$terminal->insert('end', "$sVCF_file_name_tmp", 'mark');
-	$terminal->insert('end', "' integrity check ...\n\n");
-	$terminal->see('end');
-	my $next_step = 0;
-	$repeat = $mw->repeat( 100 => sub {
-		if ($vcf_analysis_results{err_code} != 0)
-		{
-			#$processing_gif->stop_animation;
-			
-			if ($vcf_analysis_results{err_code} == 1)
-			{
-			#	$vcf_check->configure(-image => $ok_image);
-			#	$vcf_check_status->configure(-text => "OK - No. of individuals: $vcf_analysis_results{NoOfIndv}, No. of SNPs: $vcf_analysis_results{NoOfSNPs}");
-				
-				$terminal->insert('end', "Integrity check of the sVCF file '");
-				$terminal->insert('end', "$sVCF_file_name_tmp", 'mark',);
-				$terminal->insert('end', "' confirmed. Statistics:\n- number of individuals: ");
-				$terminal->insert('end', "$vcf_analysis_results{NoOfIndv}", 'mark');
-				$terminal->insert('end', "\n- number of SNPs/indels: ",);
-				$terminal->insert('end', "$vcf_analysis_results{NoOfSNPs}\n\n", 'mark');
-				$terminal->see('end');
-				
-				$terminal->insert('end', "Parsing the '");
-				$terminal->insert('end', "$sVCF_file_name_tmp", 'mark');
-				$terminal->insert('end', "' file ... ");
-				$terminal->insert('end', "0.0%", 'percent');
-				$terminal->see('end');
-				$next_step = 1;
-				$jobID = 4;
-				
-				
-				my $percent_index_start;
-				$percent_index_start = $terminal->search(-regexp, -backwards => '[0-9]+\.[0-9]%', 'end');
-				my $repeat2;
-				$repeat2 = $mw->repeat( 100 => sub {
-					if ($seqExtractor_error_code[1] != 0)
-					{
-						print "\$seqExtractor_error_code[1]: $seqExtractor_error_code[1]\n";
-					#	if (defined $percent_index_start)
-					#	{
-							my $percent = ( ($line_vcf - 1) / $vcf_analysis_results{NoOfSNPs}) * 100;
-							my $percent_index_stop = $terminal->search(-regexp, -backwards => '%', 'end');
-							$percent_index_stop += 1;
-							$terminal->delete("$percent_index_start", "$percent_index_stop");
-							$terminal->insert("$percent_index_start", sprintf ("%.1f%%", $percent));
-					#	}
-						
-						$processing_gif->stop_animation;
-						
-						my $sVCF_file_name_tmp = $sVCF_file_name;
-						$sVCF_file_name_tmp =~ s/.*[\\\/]//g;
-						my $reference_file_name_tmp = $reference_file_name;
-						$reference_file_name_tmp =~ s/.*[\\\/]//g;
-						
-						my $sequencesNotPresentInRef_No = scalar(@sequencesNotPresentInRef);
-						my $sequencesNotPresentInRef_No_forReport = scalar(@sequencesNotPresentInRef);
-						my $markersOnTheEdge_No = scalar(@markersOnTheEdge);
-						my $markersOnTheEdge_No_forReport = scalar(@markersOnTheEdge);
-						
-						if ($seqExtractor_error_code[1] == 1 and $sequencesNotPresentInRef_No == 0 and $markersOnTheEdge_No == 0 )
-						{
-							$vcf_check->configure(-image => $ok_image);
-							
-							$terminal->insert('end', "\n\nParsing finished sucessfully.\n\n");
-							$terminal->see('end');
-							
-							if ($seqExtractor_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
-							{
-								$L_lower_col1_mining_button->configure(-state => 'normal');
-							}
-						}
-						elsif ($seqExtractor_error_code[1] == 1 and $snpsNo > 0 and ($sequencesNotPresentInRef_No > 0 or $markersOnTheEdge_No > 0) )
-						{
-							
-						
-							$vcf_check->configure(-image => $ok_image);
-							
-							
-							$terminal->insert('end', "\n\n");
-							$terminal->insert('end', "Warning",'warning');
-							if ( $sequencesNotPresentInRef_No > 0 and $markersOnTheEdge_No > 0)
-							{
-								$terminal->insert('end', " - parsing finished. However, some problems occurred:\n");
-							}
-							else
-							{
-								$terminal->insert('end', " - parsing finished. However, a problem occurred:\n");
-							}
-							
-							if ( $sequencesNotPresentInRef_No > 0 )
-							{
-								if ( $sequencesNotPresentInRef_No <= 5 )
-								{
-									$terminal->insert('end', "Below listed SNPs/indels were located in the sequences not present in the reference file '");
-									$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-									$terminal->insert('end', "':\n");
-										
-									foreach my $orphanedSeq (@sequencesNotPresentInRef)
-									{
-										$terminal->insert('end', "- ");
-										$terminal->insert('end', "$orphanedSeq\n",'mark');
-									}
-									$terminal->see('end');
-																		
-								}
-								else
-								{
-									LOG("\n# Parsing sVCF file");
-									LOG("# SNPs/indels located in the sequences not present in the reference file $reference_file_name_tmp");
-									foreach my $text (@sequencesNotPresentInRef)
-									{
-										LOG($text);
-									}
-									$terminal->insert('end', "$sequencesNotPresentInRef_No_forReport", 'mark');
-									$terminal->insert('end', " SNPs/indels were located in the sequences not present in the reference file '");
-									$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-									$terminal->insert('end', "'. The list of those SNPs/indels were saved in the ");
-									$terminal->insert('end', "log.txt", 'mark');
-									$terminal->insert('end', " file.\n");
-									$terminal->see('end');
-								}
-							}
-							
-							if ( $markersOnTheEdge_No > 0)
-							{															
-								if ( $markersOnTheEdge_No <= 5 )
-								{
-									$terminal->insert('end', "Below listed SNPs/indels were located closer to the edges of the sequences than ");
-									$terminal->insert('end', "$snps_seq_len", 'mark');
-									$terminal->insert('end', " bp:\n");
-									
-									foreach my $markerOnTheEdge (@markersOnTheEdge)
-									{
-										$terminal->insert('end', "- ");
-										$terminal->insert('end', "$markerOnTheEdge\n",'mark');
-									}
-									$terminal->see('end');
-									
-								}
-								else
-								{
-									LOG("\n# Parsing sVCF file");
-									LOG("# SNPs/indels located closer to the edges of the sequences than 40 bp");
-									foreach my $text (@markersOnTheEdge)
-									{
-										LOG($text);
-									}
-									$terminal->insert('end', "$markersOnTheEdge_No_forReport", 'mark');
-									$terminal->insert('end', " SNPs/indels were located closer to the edges of the sequences than ");
-									$terminal->insert('end', "$snps_seq_len", 'mark');
-									$terminal->insert('end', " bp:\n");
-									$terminal->insert('end', "The list of those SNPs/indels were saved in the ");
-									$terminal->insert('end', "log.txt", 'mark');
-									$terminal->insert('end', " file.\n");
-									$terminal->see('end');
-								}
-							}
-							
-							$terminal->insert('end', "\n");
-							$terminal->see('end');
-							
-							if ($seqExtractor_error_code[1] == 1 and $reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
-							{
-								$L_lower_col1_mining_button->configure(-state => 'normal');
-							}	
-						}
-						elsif ($snpsNo == 0)
-						{
-							$vcf_check->configure(-image => $fail_image);
-							
-							$terminal->insert('end', "\n\n");
-							$terminal->insert('end', "Warning",'warning');
-							$terminal->insert('end', " - parsing failed. Something went horribly wrong. Please, check the sVCF file '");
-							$terminal->insert('end', "$sVCF_file_name_tmp",'mark');
-							$terminal->insert('end', "' for any issues with the file format.\n\n");
-							$terminal->see('end');
-						}
-						
-				#		$vcf_analyze_button->configure(-state => 'normal');
-				#		$vcf_chooseFile_button->configure(-state => 'normal');
-						
-						$seqExtractor_error_code[1] = 0;
-						$line_vcf = 0;
-						$repeat2->cancel;
-						
-						$vcf_analyze_button->configure(-state => 'normal');
-						$vcf_chooseFile_button->configure(-state => 'normal');
-					}
-					#print "\$line_vcf: $line_vcf\t\$vcf_analysis_results{NoOfSNPs}: $vcf_analysis_results{NoOfSNPs}\n";
-					elsif ($line_vcf > 0 and $vcf_analysis_results{NoOfSNPs} > 0)
-					{
-						my $percent = ( ($line_vcf - 1) / $vcf_analysis_results{NoOfSNPs}) * 100;
-						
-						
-						if (!defined $percent_index_start)
-						{
-							$percent_index_start = $terminal->search(-regexp, -backwards => '[0-9]+\.[0-9]%', 'end');
-						}
-						#print "$percent_index_start\n";
-						my $percent_index_stop = $terminal->search(-regexp, -backwards => '%', 'end');
-						$percent_index_stop += 1;
-						$terminal->delete("$percent_index_start", "$percent_index_stop");
-						#$terminal->see("$percent_index");
-						$terminal->insert("$percent_index_start", sprintf ("%.1f%%", $percent));
-					}
-				});
-			}
-			elsif ($vcf_analysis_results{err_code} == 3)
-			{
-				$vcf_check->configure(-image => $fail_image);
-			#	$vcf_check_status->configure(-text => "Error - the file does not have a header");
-				
-				
-				$terminal->insert('end', "Warning", 'warning');
-				$terminal->insert('end', " - the file '");
-				$terminal->insert('end', "$sVCF_file_name_tmp", 'mark');
-				$terminal->insert('end', "' does not have the header '");
-				$terminal->insert('end', "#CHROM",'mark');
-				$terminal->insert('end', "'. Is it really sVCF file?\n\n");
-				$terminal->see('end');
-				
-				$vcf_analyze_button->configure(-state => 'normal');
-				$vcf_chooseFile_button->configure(-state => 'normal');
-			}
-			
-			$repeat->cancel;
+			$repeat_v2c_check->cancel;
 		}
 
 	} );
@@ -2047,24 +3327,44 @@ sub start_sVCF_check
 # The function that triggers and checks the progress of caps mining step.
 sub start_caps_mining
 {
-	$caps_mining_results[1] = 0;
+#	print "Start CAPS mining\n";
+	#$caps_mining_results[1] = 0;
+	@caps_mining_results = ("",0);
 	$jobID = 5;
-	$L_lower_col2_mining_button->configure(-state => 'disabled');
 	$capsMining_percent = 0;
 	$enzyme_zip = 0;
 	$enzyme_zip_stop = 0;
 #	$progressBar->configure(-value => 0);
 	$caps_mining_result_label->packForget;
+	
 	my $repeat;
 	my $enzymes_for_analysis_No = keys %enzymes_for_analysis;
 	
 	$repeat = $mw->repeat( 100 => sub {
 		$capsMining_percent = ( ($enzyme_zip) / $enzymes_for_analysis_No) * 100;
-		if ($enzyme_zip > 0 and $capsMining_percent < 100)
+		if ($enzyme_zip > 0 and $capsMining_percent < 100 and $caps_mining_results[1] == 0)
 		{
 			$caps_mining_prepare_enzymes_label->pack(-side => 'left', -anchor => 'w', -padx => 5);
 			
 			$caps_mining_prepare_enzymes_label->configure(-text => sprintf ("Preparing enzymes list   %.1f%%", $capsMining_percent) );
+		}
+		elsif ( $caps_mining_results[1] == 3 )
+		{
+			my $reference_file_name_tmp = $reference_file_name;
+			$reference_file_name_tmp =~ s/.*[\\\/]//g;
+			
+			curr_time();
+			$terminal->insert('end', "Warning", 'warning');
+			$terminal->insert('end', " - cannot open the index file: '");
+			$terminal->insert('end', "$reference_file_name_tmp", 'mark');
+			$terminal->insert('end', "'.\n\n");
+		
+			$repeat->cancel;
+			$L_lower_col1_mining_button->configure(-state => 'normal');
+			if ( $caps_mining_results[1] == 3 )
+			{
+				warning_dial("Cannot open the file ::: $caps_mining_results[0]");
+			}
 		}
 		elsif ($capsMining_percent == 100)
 		{
@@ -2075,12 +3375,12 @@ sub start_caps_mining
 			$caps_mining_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $actualSNPNo,$vcf_analysis_results{NoOfSNPs},$capsMining_percent) );
 			$caps_mining_progress_frame->pack(-side => 'left', -anchor => 'w', -padx => 5);
 			
-			
+			curr_time();
 			$terminal->insert('end', "Start CAPS mining ...\n\n");
 			$terminal->see('end');
 			my $repeat2;
+			
 			$repeat2 = $mw->repeat( 100 => sub {
-				
 				
 				
 				if ($caps_mining_results[1] != 0)
@@ -2095,64 +3395,60 @@ sub start_caps_mining
 					if ($caps_mining_results[1] == 1 and $markersOnTheEdge_No == 0)
 					{
 						$caps_mining_progress_frame->packForget;
-						my $numberOfSNPs_tmp = $numberOfSNPs;
-						$numberOfSNPs_tmp =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1 /g;
-						$caps_mining_result_label->configure(-text => "$numberOfSNPs_tmp CAPS found");
+
+						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
-												
+						
+						curr_time();						
 						$terminal->insert('end', "CAPS mining finished.");
-						$terminal->insert('end', " $numberOfSNPs_tmp", 'mark');
-						$terminal->insert('end', " CAPS were saved to file '");
-						$terminal->insert('end', "out.txt", 'mark');
+						$terminal->insert('end', " $caps_mining_results[0]", 'mark');
+						$terminal->insert('end', " CAPS were saved to the file: '");
+						$terminal->insert('end', "caps_markers.txt", 'mark');
 						$terminal->insert('end', "'\n\n");;
 						$terminal->see('end');
 						
-						$L_lower_col2_mining_button->configure(-state => 'normal');
 					}
 					elsif ($caps_mining_results[1] == 1 and $markersOnTheEdge_No > 0)
 					{
 						$caps_mining_progress_frame->packForget;
-						my $numberOfSNPs_tmp = $numberOfSNPs;
-						$numberOfSNPs_tmp =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1 /g;
-						$caps_mining_result_label->configure(-text => "$numberOfSNPs_tmp CAPS found");
+
+						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
-						
-						my $sVCF_file_name_tmp = $sVCF_file_name;
-						$sVCF_file_name_tmp =~ s/.*[\\\/]//g;
-						
+												
+						curr_time();
 						$terminal->insert('end', "Warning",'warning');
 						$terminal->insert('end', " - CAPS mining finished.");
-						$terminal->insert('end', " $numberOfSNPs_tmp", 'mark');
-						$terminal->insert('end', " CAPS were saved to file '");
-						$terminal->insert('end', "out.txt", 'mark');
+						$terminal->insert('end', " $caps_mining_results[0]", 'mark');
+						$terminal->insert('end', " CAPS were saved to the file: '");
+						$terminal->insert('end', "caps_markers.txt", 'mark');
 						$terminal->insert('end', "'. However, a problem occurred:\n");
 												
 						if ( $markersOnTheEdge_No <= 5 )
 						{
-							$terminal->insert('end', "Below listed SNPs/indels were located closer to the edges of the sequences than ");
+							$terminal->insert('end', "Below listed SNPs/InDels were located closer to the edges of the sequences than ");
 							$terminal->insert('end', "$output_seq_len", 'mark');
 							$terminal->insert('end', " bp:\n");
 						
 							foreach my $markerOnTheEdge (@markersOnTheEdge)
 							{
 								$terminal->insert('end', "- ");
-								$terminal->insert('end', "$markerOnTheEdge\n\n",'mark');
+								$terminal->insert('end', "$markerOnTheEdge\n",'mark');
 							}
 							$terminal->see('end');
 						}
 						else
 						{
 							LOG("\n# CAPS mining");
-							LOG("# SNPs/indels located closer to the edges of the sequences than 500 bp");
+							LOG("# SNPs/InDels located closer to the edges of the sequences than 500 bp");
 							foreach my $text (@markersOnTheEdge)
 							{
 								LOG($text);
 							}
 							$terminal->insert('end', "$markersOnTheEdge_No_forReport", 'mark');
-							$terminal->insert('end', " SNPs/indels were located closer to the edges of the sequences than ");
+							$terminal->insert('end', " SNPs/InDels were located closer to the edges of the sequences than ");
 							$terminal->insert('end', "$output_seq_len", 'mark');
 							$terminal->insert('end', " bp:\n");
-							$terminal->insert('end', "The list of those SNPs/indels were saved in the ");
+							$terminal->insert('end', "The list of those SNPs/InDels were saved to the file: ");
 							$terminal->insert('end', "log.txt", 'mark');
 							$terminal->insert('end', " file.\n");
 							$terminal->see('end');
@@ -2161,46 +3457,42 @@ sub start_caps_mining
 						$terminal->insert('end', "\n");
 						$terminal->see('end');
 						
-						$L_lower_col2_mining_button->configure(-state => 'normal');
 					}
 					elsif ($caps_mining_results[1] == 2)
 					{
 						$caps_mining_progress_frame->packForget;
-						my $numberOfSNPs_tmp = $numberOfSNPs;
-						$numberOfSNPs_tmp =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1 /g;
-						$caps_mining_result_label->configure(-text => "$numberOfSNPs_tmp CAPS found");
+
+						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
 						
+						curr_time();
 						$terminal->insert('end', "Warning", 'warning');
 						$terminal->insert('end', " - CAPS mining canceled.");
-						$terminal->insert('end', " $numberOfSNPs_tmp", 'mark');
-						$terminal->insert('end', " CAPS were saved to file '");
-						$terminal->insert('end', "out.txt", 'mark');
+						$terminal->insert('end', " $caps_mining_results[0]", 'mark');
+						$terminal->insert('end', " CAPS were saved to the file: '");
+						$terminal->insert('end', "caps_markers.txt", 'mark');
 						$terminal->insert('end', "'\n\n");;
 						$terminal->see('end');
-						
-						$L_lower_col2_mining_button->configure(-state => 'normal');
+
 					}
 					elsif ($caps_mining_results[1] == 2 and $markersOnTheEdge_No > 0)
 					{
 						$caps_mining_progress_frame->packForget;
-						my $numberOfSNPs_tmp = $numberOfSNPs;
-						$numberOfSNPs_tmp =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1 /g;
-						$caps_mining_result_label->configure(-text => "$numberOfSNPs_tmp CAPS found");
+
+						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
 						
-						my $sVCF_file_name_tmp = $sVCF_file_name;
-						$sVCF_file_name_tmp =~ s/.*[\\\/]//g;
+						curr_time();
 						$terminal->insert('end', "Warning", 'warning');
 						$terminal->insert('end', " - CAPS mining canceled.");
-						$terminal->insert('end', " $numberOfSNPs_tmp", 'mark');
-						$terminal->insert('end', " CAPS were saved to file '");
-						$terminal->insert('end', "out.txt", 'mark');
+						$terminal->insert('end', " $caps_mining_results[0]", 'mark');
+						$terminal->insert('end', " CAPS were saved to the file: '");
+						$terminal->insert('end', "caps_markers.txt", 'mark');
 						$terminal->insert('end', "'. However, a problem occurred:\n");
 						
 						if ( $markersOnTheEdge_No <= 5 )
 						{
-							$terminal->insert('end', "Below listed SNPs/indels were located closer to the edges of the sequences than ");
+							$terminal->insert('end', "Below listed SNPs/InDels were located closer to the edges of the sequences than ");
 							$terminal->insert('end', "$output_seq_len", 'mark');
 							$terminal->insert('end', " bp:\n");
 							
@@ -2216,16 +3508,16 @@ sub start_caps_mining
 						else
 						{
 							LOG("\n# CAPS mining");
-							LOG("# SNPs/indels located closer to the edges of the sequences than 500 bp");
+							LOG("# SNPs/InDels located closer to the edges of the sequences than 500 bp");
 							foreach my $text (@markersOnTheEdge)
 							{
 								LOG($text);
 							}
 							$terminal->insert('end', "$markersOnTheEdge_No_forReport", 'mark');
-							$terminal->insert('end', " SNPs/indels were located closer to the edges of the sequences than ");
+							$terminal->insert('end', " SNPs/InDels were located closer to the edges of the sequences than ");
 							$terminal->insert('end', "$output_seq_len", 'mark');
 							$terminal->insert('end', " bp:\n");
-							$terminal->insert('end', "The list of those SNPs/indels were saved in the ");
+							$terminal->insert('end', "The list of those SNPs/InDels were saved to the file: ");
 							$terminal->insert('end', "log.txt", 'mark');
 							$terminal->insert('end', " file.\n");
 							$terminal->see('end');
@@ -2235,13 +3527,48 @@ sub start_caps_mining
 						$terminal->insert('end', "\n");
 						$terminal->see('end');
 					}
-					
+					elsif ( $caps_mining_results[1] == 4 )
+					{
+						$caps_mining_progress_frame->packForget;
+						
+						my $v2c_file_name_tmp = $v2c_file_name;
+						$v2c_file_name_tmp =~ s/.*[\\\/]//g;
+						
+						curr_time();
+						$terminal->insert('end', "Warning", 'warning');
+						$terminal->insert('end', " - cannot write to the output file: '");
+						$terminal->insert('end', "caps_markers.txt", 'mark');
+						$terminal->insert('end', "'.\n\n");
+					}
+					elsif ( $caps_mining_results[1] == 5 )
+					{
+						$caps_mining_progress_frame->packForget;
+						$raw_vcf_check->configure(-image => $warning_image);
+						
+						my $v2c_file_name_tmp = $v2c_file_name;
+						$v2c_file_name_tmp =~ s/.*[\\\/]//g;
+						
+						curr_time();
+						$terminal->insert('end', "Warning", 'warning');
+						$terminal->insert('end', " - cannot open the v2c file: '");
+						$terminal->insert('end', "$v2c_file_name_tmp", 'mark');
+						$terminal->insert('end', "'.\n\n");
+					}
 					
 					
 					$L_lower_col1_mining_button->configure(-state => 'normal');
 					
 					
 					$repeat2->cancel;
+					
+					if ( $caps_mining_results[1] == 4 )
+					{
+						warning_dial("Cannot write to the file ::: $caps_mining_results[0]");
+					}
+					elsif ( $caps_mining_results[1] == 5 )
+					{
+						warning_dial("Cannot open the file ::: $caps_mining_results[0]");
+					}
 				}
 				elsif ($actualSNPNo > 0 and $vcf_analysis_results{NoOfSNPs} > 0)
 				{
@@ -2263,56 +3590,106 @@ sub start_caps_mining
 # The function that triggers and checks the progress of single-cut filtration step.
 sub start_singleCut_filter
 {
-	$jobID = 6;
-	$singleCutSite_percent = 0;
-	$caps_singleCut_result_label->packForget;
-	$singleCut_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $numberOfSNPsBefore,$numberOfSNPs,$singleCutSite_percent) );
-	$caps_singleCut_progress_frame->pack(-side => 'left', -anchor => 'w', -padx => 5);
+	
+	$cfw_scf_CAPS_filtering_percent = 0;
+	$numberOfSNPsBefore = 0;
+	$cfw_scf_error_label->packForget;
+	$cfw_scf_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $numberOfSNPsBefore,$total_caps_number,$cfw_scf_CAPS_filtering_percent) );
+#	print $cfw_scf_progress_label->cget(-text) . "\n";
+	$cfw_scf_progress_frame->pack(-side => 'left', -anchor => 'w', -padx => 5);
 	my $repeat;
-	$singleCutSite_results[1] = 0;
+	@singleCutSite_results = ("", 0);
+	$jobID = 6;
+	
+	curr_time();
 	$terminal->insert('end', "Start single-cut CAPS filtering ...\n\n");
 	$terminal->see('end');
 	$repeat = $mw->repeat( 100 => sub {
 		if ($singleCutSite_results[1] != 0)
 		{
+			my $cfw_scf_output_file_tmp = $cfw_scf_output_file;
+			$cfw_scf_output_file_tmp =~ s/.+\/(.+\.txt)/$1/;
+				
 			if ($singleCutSite_results[1] == 1)
 			{
-				$caps_singleCut_progress_frame->packForget;
+				$cfw_scf_CAPS_filtering_percent = ( $numberOfSNPsBefore / $total_caps_number ) * 100;
+				$cfw_scf_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $numberOfSNPsBefore,$total_caps_number,$cfw_scf_CAPS_filtering_percent) );
+
+				$cfw_scf_progress_frame->packForget;
 				$numberOfSNPsAfter =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1 /g;
-				$caps_singleCut_result_label->configure(-text => "$numberOfSNPsAfter CAPS found with single-cut site");
-				$caps_singleCut_result_label->pack(-side => 'left', -anchor => 'w');
+				$cfw_scf_error_label->configure(-text => "$numberOfSNPsAfter CAPS with single-cut site were saved to the file: '$cfw_scf_output_file_tmp'");
+				$cfw_scf_error_label->pack(-side => 'left', -anchor => 'w');
+				
+				curr_time();
 				$terminal->insert('end', "Single-cut CAPS filtering finished.");
 				$terminal->insert('end', " $numberOfSNPsAfter", 'mark');
-				$terminal->insert('end', " CAPS were saved to '");
-				$terminal->insert('end', "out_single.txt", 'mark');
+				$terminal->insert('end', " CAPS were saved to the file: '");
+				$terminal->insert('end', "$cfw_scf_output_file_tmp", 'mark');
 				$terminal->insert('end', "' file\n\n");
 				$terminal->see('end');
 			}
 			elsif ($singleCutSite_results[1] == 2)
 			{
-				$caps_singleCut_progress_frame->packForget;
+				$cfw_scf_progress_frame->packForget;
 				$numberOfSNPsAfter =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1 /g;
-				$caps_singleCut_result_label->configure(-text => "$numberOfSNPsAfter CAPS found with single-cut site");
-				$caps_singleCut_result_label->pack(-side => 'left', -anchor => 'w');
+				$cfw_scf_error_label->configure(-text => "$numberOfSNPsAfter CAPS with single-cut site were saved to the file: '$cfw_scf_output_file_tmp'");
+				$cfw_scf_error_label->pack(-side => 'left', -anchor => 'w');
+				
+				curr_time();
 				$terminal->insert('end', "Warning",'warning');
 				$terminal->insert('end', " - single-cut CAPS filtering canceled.");
 				$terminal->insert('end', " $numberOfSNPsAfter", 'mark');
-				$terminal->insert('end', " CAPS were saved to '");
-				$terminal->insert('end', "out_single.txt", 'mark');
+				$terminal->insert('end', " CAPS were saved to the file: '");
+				$terminal->insert('end', "$cfw_scf_output_file_tmp", 'mark');
 				$terminal->insert('end', "' file\n\n");
 				$terminal->see('end');
 			}
-			$L_lower_col2_mining_button->configure(-state => 'normal');
+			elsif ($singleCutSite_results[1] == 3)
+			{
+				$cfw_scf_progress_frame->packForget;
+				
+				curr_time();
+				$terminal->insert('end', "Warning",'warning');
+				$terminal->insert('end', " - cannot write to the output file: ");
+				$terminal->insert('end', "$cfw_scf_output_file_tmp", 'mark');
+				$terminal->insert('end', "'.\n\n");
+				$terminal->see('end');
+			}
+			elsif ($singleCutSite_results[1] == 4)
+			{
+				$cfw_scf_progress_frame->packForget;
+				
+				my $cfw_scf_input_file_tmp = $cfw_scf_input_file;
+				$cfw_scf_input_file_tmp =~ s/.*[\\\/]//g;
+				$cfw_scf_inputFile_check->configure(-image => $warning_image);
+				
+				curr_time();
+				$terminal->insert('end', "Warning",'warning');
+				$terminal->insert('end', " - cannot open the file: ");
+				$terminal->insert('end', "$cfw_scf_input_file_tmp", 'mark');
+				$terminal->insert('end', "'.\n\n");
+				$terminal->see('end');
+			}
+			$cfw_scf_start_button->configure(-state => 'normal');
 			
 			
 			$repeat->cancel;
+			
+			if ($singleCutSite_results[1] == 3)
+			{
+				warning_dial("Cannot write to the file ::: $singleCutSite_results[0]");
+			}
+			elsif ($singleCutSite_results[1] == 4)
+			{
+				warning_dial("Cannot open the file ::: $singleCutSite_results[0]");
+				$Caps_Filtration_Window->focusForce;
+			}
 		}
 		
-		elsif ($numberOfSNPsBefore > 0 and $vcf_analysis_results{NoOfSNPs} > 0)
+		elsif ($numberOfSNPsBefore > 0 and $total_caps_number > 0)
 		{
-			$singleCutSite_percent = ( ($numberOfSNPsBefore) / $numberOfSNPs ) * 100;
-
-			$singleCut_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $numberOfSNPsBefore,$numberOfSNPs,$singleCutSite_percent) );
+			$cfw_scf_CAPS_filtering_percent = ( $numberOfSNPsBefore / $total_caps_number ) * 100;
+			$cfw_scf_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $numberOfSNPsBefore,$total_caps_number,$cfw_scf_CAPS_filtering_percent) );
 			
 			#$terminal->insert("$percent_index_start", sprintf ("%.1f%%", $percent));
 		}
@@ -2327,17 +3704,12 @@ sub fileDialog {
 	my $types;
 	my $file;
 	my @types_reference =
-		(["Fasta files", [qw/.fa .fasta/],'TEXT'],
+		(["Fasta files", [qw/.fa .fasta .fna/],'TEXT'],
 		["Text files", '.txt','TEXT'],
 		["All files", '*']
 	);
 	my @types_vcf =
 		(["VCF files", '.vcf', 'TEXT'],
-		["Text files", '.txt'],
-		["All files", '*']
-	);
-	my @types_svcf =
-		(["Simplified VCF files", '.svcf', 'TEXT'],
 		["Text files", '.txt'],
 		["All files", '*']
 	);
@@ -2360,22 +3732,15 @@ sub fileDialog {
 		if (defined $file and $file ne "")
 		{
 			$reference_check->configure(-image => '', -text => 'none');
+			$raw_vcf_check->configure(-image => '', -text => 'none');
+			$vcf_analysis_results{err_code} = 0;
+			$L_lower_col1_mining_button->configure(-state => 'disabled');
+			
+			@reference_analysis_results = (0);
 			
 			$reference_entry->delete(0, 'end');
 			$reference_entry->insert(0, $file);
 			$reference_entry->xview('end');
-		}
-	}
-	elsif ($file_type eq "vcf")
-	{
-		$file = $w->getOpenFile(-filetypes => \@types_svcf, -defaultextension => '.svcf');
-		if (defined $file and $file ne "")
-		{
-			$vcf_check->configure(-image => '', -text => 'none');
-			
-			$vcf_entry->delete(0, 'end');
-			$vcf_entry->insert(0, $file);
-			$vcf_entry->xview('end');
 		}
 	}
 	elsif ($file_type eq "raw_vcf")
@@ -2384,23 +3749,60 @@ sub fileDialog {
 		if (defined $file and $file ne "")
 		{
 			$raw_vcf_check->configure(-image => '', -text => 'none');
+			$L_lower_col1_mining_button->configure(-state => 'disabled');
 			
 			$raw_vcf_entry->delete(0, 'end');
 			$raw_vcf_entry->insert(0, $file);
 			$raw_vcf_entry->xview('end');
 		}
 	}
-
-	#    if (defined $file and $file ne '') {
-	#	$ent->delete(0, 'end');
-	#	$ent->insert(0, $file);
-	#	$ent->xview('end');
-	#   }
+	elsif ($file_type eq "vcf2caps_output")
+	{
+		$file = $w->getOpenFile(-defaultextension => '.txt');
+		if (defined $file and $file ne "")
+		{
+			$cfw_gf_inputFile_check->configure(-image => '', -text => 'none', -foreground => 'grey');
+			
+			$cfw_gf_inputFile_entry->delete(0, 'end');
+			$cfw_gf_inputFile_entry->insert(0, $file);
+			$cfw_gf_inputFile_entry->xview('end');
+			$cfw_gf_start_button->configure(-state => 'disabled');
+			$Caps_Filtration_Window->focusForce;
+		}
+	}
+	elsif ($file_type eq "scf_vcf2caps_output")
+	{
+		$file = $w->getOpenFile(-defaultextension => '.txt');
+		if (defined $file and $file ne "")
+		{
+			$cfw_scf_inputFile_check->configure(-image => '', -text => 'none', -foreground => 'grey');
+			
+			$cfw_scf_inputFile_entry->delete(0, 'end');
+			$cfw_scf_inputFile_entry->insert(0, $file);
+			$cfw_scf_inputFile_entry->xview('end');
+			$cfw_scf_start_button->configure(-state => 'disabled');
+			$Caps_Filtration_Window->focusForce;
+		}
+	}
+	elsif ($file_type eq "c2f_vcf2caps_output")
+	{
+		$file = $w->getOpenFile(-defaultextension => '.txt');
+		if (defined $file and $file ne "")
+		{
+			$cfw_c2f_inputFile_check->configure(-image => '', -text => 'none', -foreground => 'grey');
+			
+			$cfw_c2f_inputFile_entry->delete(0, 'end');
+			$cfw_c2f_inputFile_entry->insert(0, $file);
+			$cfw_c2f_inputFile_entry->xview('end');
+			$cfw_c2f_start_button->configure(-state => 'disabled');
+			$Caps_Filtration_Window->focusForce;
+		}
+	}
 }
 
-######################################################################################################################
+#--------------------------------------------------------------------------------------------------------------------#
 # The main function that works in the background performing specific tasks depending on the value of variable $jobID #
-######################################################################################################################
+#--------------------------------------------------------------------------------------------------------------------#
 sub work
 {
 	while(1)
@@ -2414,21 +3816,38 @@ sub work
 				if (-e $reference_file_name)
 				{
 					$genome_exists = 1;
-					my $prefix = $reference_file_name;
-					$prefix =~ s/\.fa[a-z]*$//;
+					my $reference_file_name_tmp = $reference_file_name;
+					$reference_file_name_tmp =~ s/\..+$//;
+					$reference_file_name_tmp =~ s/.*[\\\/]//g;
 					my $line_len = 0; # Długość sekwencji nukleotydowej w każdej linii (za wyjątkiem ostatniej linii danej sekwencji) pliku fasta
 					my $chrom_ID = ""; # Nazwa sekwencji z pliku referencji
 					my $chrom_len = 0; # Całkowita długość danej sekwencji
 					my $last_line_len = 0; # Długość ostatniej linii danej sekwencji
 					my $alert = 0; # Jeżeli 1 - różna długość linii z sekwencjami w pliku fasta. Jeżeli tylko ostatnia linia chromosomu ma inną długość to ten parametr jest zerowany
 					my @all_chrom_ID = (); # Zmienna przechowuje nazwy wszystkich sekwencji obecnych w referencji
-					open my $fh, "<", $reference_file_name or die "Cannot open the file '$reference_file_name'.";
-					open my $Ofh, '>>', $prefix . ".index" or die "Cannot create the file '$prefix.index'\n";
 					
+					my $fh;
+					if ( !open $fh, "<", $reference_file_name )
+					{
+						$reference_analysis_results[1] = $!;
+						$reference_analysis_results[0] = 5;
+						$jobID = 0;
+						next;
+					}
+					
+					my $Ofh;
+					if ( !open $Ofh, '>>', $working_dir . $reference_file_name_tmp . ".index" )
+					{
+						$reference_analysis_results[1] = $!;
+						$reference_analysis_results[0] = 6;
+						$jobID = 0;
+						next;
+					}
+					
+						print $Ofh "#$reference_md5\n";
+						
 						L: while (<$fh>)
 						{
-					###########################
-						
 							chomp $_;
 							if ($_ =~ /^>/) # Jeżeli linia rozpoczyna się od znaku zachęty '>', to ...
 							{
@@ -2442,8 +3861,10 @@ sub work
 										{
 				#									print "[\e[91mfail\e[0m]\n\n";
 				#									print "Sequence name '$chrom_ID' duplicate present.\nExiting ...\n";
-											unlink $prefix . ".index"; # ... usuwa utworzony plik indeksu, następnie ...
-											
+											close $Ofh;
+											unlink $working_dir . $reference_file_name_tmp . ".index"; # ... usuwa utworzony plik indeksu, następnie ...
+#											if (-e $working_dir . $reference_file_name_tmp . ".index") { print "OK\n" }
+
 											@genome_error = (1,$chrom_ID);
 											last L;
 										}
@@ -2471,7 +3892,8 @@ sub work
 										{
 											if ($alert == 1) # ... sprawdza, czy zmienna $alert ma już przyporządkowaną wartość 1 (błąd odpowiadający różnej długości linii). Jeżeli tak, to ...
 											{
-												unlink $prefix . ".index"; # ... usuwany jest plik indeksu, następnie ...
+												close $Ofh;
+												unlink $working_dir . $reference_file_name_tmp . ".index"; # ... usuwany jest plik indeksu, następnie ...
 												
 												@genome_error = (2,"$chrom_ID,$.");
 												last L;
@@ -2482,7 +3904,8 @@ sub work
 										{
 											if ($alert == 1) # ... sprawdza, czy zmienna $alert ma już przyporządkowaną wartość 1 (błąd odpowiadający różnej długości linii). Jeżeli tak, to ...
 											{
-												unlink $prefix . ".index"; # ... usuwany jest plik indeksu, następnie ...
+												close $Ofh;
+												unlink $working_dir . $reference_file_name_tmp . ".index"; # ... usuwany jest plik indeksu, następnie ...
 												
 												@genome_error = (2,"$chrom_ID,$.");
 												last L;
@@ -2519,13 +3942,23 @@ sub work
 
 			if (defined $enzyme_file_name)
 			{
+				my $fh;
 				my $line = 0;
 				my $enzymes_exists = 1;
 				my $db_OK = 0;
 				$enzymes_db{date} = "unknown";
 				my $enzymes_begin = 0;
 				###################
-				open $fh, '<', $enzyme_file_name;
+				
+				if ( !open $fh, '<', $enzyme_file_name )
+				{
+					$enzyme_analysis_results[1] = $!;
+					$enzyme_analysis_results[0] = 4;
+					$jobID = 0;
+					next;
+				}
+				
+				
 					my @id_vs_companyName = (); # <ID_firmy>,<nazwa_firmy>
 					
 					
@@ -2621,11 +4054,6 @@ sub work
 								}
 								
 								$enzymes_db{$data[0]} = join("\t",@tmp,$raw_seq);
-							#	print "$enzymes_db{$data[0]}\n";
-							#	$enzymes_db{$data[0]}{cut_site} = $data[1];
-							#	$enzymes_db{$data[0]}{sequence} = $data[2];
-							#	$enzymes_db{$data[0]}{overhang} = $data[3];
-								
 								
 								$data[2] = uc $data[2];
 								push @enzymes_tmp, join("\t", $data[2],$data[0]);
@@ -2634,9 +4062,6 @@ sub work
 						}
 					}
 				close $fh;
-				
-
-				
 				
 				if ($db_OK == 1)
 				{
@@ -2670,7 +4095,6 @@ sub work
 					}
 			
 				}
-				###################
 				if ($enzymes_exists == 1 and $db_OK == 1) { @allEnzymesNames = sort{$a cmp $b} @allEnzymesNames; $enzyme_analysis_results[0] = 1 } # Jeżeli plik Enzymes istnieje ($enzymes_exists == 1) oraz nie ma żadnych błędów ($enzymes_err == 0), to drukowany jest 'OK'
 				elsif ($enzymes_exists == 1 and $db_OK == 0) { $enzyme_analysis_results[0] = 3 } # Jeżeli plik Enzymes istnieje ($enzymes_exists == 1), ale jest obecny w nim błąd ($enzymes_err == 1), to drukowany jest 'fail' oraz jego lokalizacja (nr linii)
 				
@@ -2678,7 +4102,7 @@ sub work
 				
 				
 				
-				print "Checking enzymes completed\n";
+#				print "Checking enzymes completed\n";
 
 			}
 			
@@ -2686,145 +4110,674 @@ sub work
 		}
 		elsif ($jobID == 3)
 		{
-			if (defined $sVCF_file_name)
+			my $vcf_number_of_variants = 0;
+			my $vcf_error = 0; # Jeśli zmienna jest ustawiona na 1, to oznacza, że jest obecny błąd w pliku
+			my $vcf_exists = 0;
+			@linie = ();
+			my $number_of_individuals = 0;
+			
+			if (-e $raw_vcf_file_name) # Jeżeli plik VCF istnieje ...
 			{
-				$line = 0;
-				my $vcf_NoOfLines;
-				my $vcf_error = 0; # Jeśli zmienna jest ustawiona na 1, to oznacza, że jest obecny błąd w pliku
-				my $vcf_exists = 0;
-				@linie = ();
-				my $linie_ile = 0;
-				
-				if (-e $sVCF_file_name) # Jeżeli plik VCF istnieje ...
+				$vcf_exists = 1;
+
+				my $check_vcf;
+				if ( !open $check_vcf, '<', "$raw_vcf_file_name" )
 				{
-					$vcf_exists = 1;
-					open my $check_vcf, '<', "$sVCF_file_name";
-						my $checkLine = 0;
-						
+					%vcf_analysis_results = ( err_code => 6, err_value => $! );
+					
+					$jobID = 0;
+					next;
+				}
+				
+					my $begin = 0;
+					
+					while (my $check_bier = <$check_vcf>)
+					{
+						chomp $check_bier;
+						my @data = split("\t", $check_bier);
 
-						if ($vcf_exists == 1) # Jeżeli plik VCF istnieje, to ...
+						if ($data[0] =~ /^#CHROM/) # Jeżeli plik VCF ma nazwy kolumn, to ...
 						{
-							L: while (my $check_bier = <$check_vcf>)
+							$begin = 1;
+							
+							for (my $i = 9; $i < scalar(@data); $i++) # ... do tablicy @linie zapisywane są nazwy analizowanych obiektów
 							{
-								chomp $check_bier;
-								my @data = split("\t", $check_bier);
-								$line++; # numeruje aktualnie sprawdzane linie w pliku
-								if ($data[0] =~ /^#CHROM/ and $checkLine == 0) # Jeżeli plik VCF ma nazwy kolumn, to ...
-								{
-									for (my $i = 4; $i < scalar(@data); $i++) # ... do tablicy @linie zapisywane są nazwy analizowanych obiektów
-									{
-										push @linie, $data[$i];
-									}
-								}
-								elsif ($checkLine == 0) {$vcf_error = 1; last L} # Jeżeli plik VCF nie ma nazw kolumn, to zmiennej $vcf_error przypisywana jest wartość 1, a następnie indukowane jest wyjście z pętli
-								
-								$linie_ile = @linie; # Przypisanie zmiennej $linie_ile liczby analizowanych obiektów
-
-								if ($checkLine == 0) {$checkLine = 1}; # Zmienna $checkLine informuje czy aktualnie analizowany jest pierwszy wiersz zawierający nazwy kolumn ($checkLine == 0). Dla wszystkich pozostałych wierszy zmienna $checkLine ma przypisaną wartość 0
-
+								push @linie, $data[$i];
 							}
-
-							$vcf_NoOfLines = $line;
+							
+							$number_of_individuals = @linie; # Przypisanie zmiennej $linie_ile liczby analizowanych obiektów
 						}
-					close $check_vcf;
-				} else { $vcf_exists = 0 }
-				$vcf_NoOfLines--;
-				if ($vcf_exists == 1 and $vcf_error == 0) { %vcf_analysis_results = (err_code => 1, NoOfIndv => $linie_ile, NoOfSNPs => $vcf_NoOfLines) } # Jeżeli plik VCF istnieje ($vcf_exists == 1) oraz nie ma żadnych błędów ($vcf_error == 0), to drukowany jest 'OK'
-				elsif ($vcf_exists == 0) { $vcf_analysis_results{err_code} = 2 } # Jeżeli plik VCF nie istnieje ($vcf_exists == 0), to drukowany jest 'fail'
-				elsif ($vcf_exists == 1 and $vcf_error == 1) { $vcf_analysis_results{err_code} = 3 } # Jeżeli plik VCF istnieje ($vcf_exists == 1), ale nie ma nazw kolumn ($vcf_error == 1), to drukowany jest 'fail'
-				elsif ($vcf_exists == 1 and $vcf_error == 2) { %vcf_analysis_results = (err_code => 4, errLine => $line) } # Jeżeli plik VCF istnieje ($vcf_exists == 1), ale ma co najmniej 1 niezdefiniowany genotyp "-" ($vcf_error == 2), to drukowany jest 'fail'
+						elsif ( $begin == 1 )
+						{
+							$vcf_number_of_variants++;
+						}
+					}
+					
+					if ($begin == 0)
+					{
+						$vcf_error = 1;
+					}
+					
+					
+				close $check_vcf;
+			} else { $vcf_exists = 0 }
+			
+			if ($vcf_exists == 1 and $vcf_error == 0) { %vcf_analysis_results = (err_code => 1, NoOfIndv => $number_of_individuals, NoOfSNPs => $vcf_number_of_variants) } # Jeżeli plik VCF istnieje ($vcf_exists == 1) oraz nie ma żadnych błędów ($vcf_error == 0), to drukowany jest 'OK'
+			elsif ($vcf_exists == 0) { $vcf_analysis_results{err_code} = 2 } # Jeżeli plik VCF nie istnieje ($vcf_exists == 0), to drukowany jest 'fail'
+			elsif ($vcf_exists == 1 and $vcf_error == 1) { $vcf_analysis_results{err_code} = 3 } # Jeżeli plik VCF istnieje ($vcf_exists == 1), ale nie ma nazw kolumn ($vcf_error == 1), to drukowany jest 'fail'
+#			elsif ($vcf_exists == 1 and $vcf_error == 2) { %vcf_analysis_results = (err_code => 4, errLine => $line) } # Jeżeli plik VCF istnieje ($vcf_exists == 1), ale ma co najmniej 1 niezdefiniowany genotyp "-" ($vcf_error == 2), to drukowany jest 'fail'
 
-			}
 			$jobID = 0;
 		}
 		elsif ($jobID == 4)
 		{
-			print "vcf2snps start\n";
+#			print "vcf2snps start\n";
 			@seqExtractor_error_code = (vcf2snps($snps_seq_len,$reference_file_name));
 			
 			$jobID = 0;
 		}
 		elsif ($jobID == 5)
 		{
-			print "Start CAPS mining\n";
 			@caps_mining_results = ( caps_miner($output_seq_len,$reference_file_name) );
-			
 			$jobID = 0;
 		}
 		elsif ($jobID == 6)
 		{
-			print "Start single-cut filter\n";
+			#print "Start single-cut filter\n";
 			@singleCutSite_results = ( singleCutSite() );
 			
 			$jobID = 0;
 		}
 		elsif ($jobID == 7)
 		{
-			print "Start simplifying VCF file\n";
+#			print "Start checking v2c file\n";
+			$vcf_md5 = "";
+			@linie = ();
+			my $v2c_file_name_tmp = $raw_vcf_file_name;
+			$v2c_file_name_tmp =~ s/\..+$/\.v2c/;
+			$v2c_file_name_tmp =~ s/.*[\\\/]//g;
 			
-			my $begin = 0;
-			my @output;
-			my @output_std = qw(0 1 3 4);
-			my $vcf_error = 0;
-			my $raw_vcf_file_name_tmp = $raw_vcf_file_name;
-			$raw_vcf_file_name_tmp =~ s/.*[\\\/]//g;
-			$raw_vcf_file_name_tmp =~ s/\..+$//g;
-			$raw_vcf_file_name_tmp = $raw_vcf_file_name_tmp . ".svcf";
+			my $number_of_individuals = 0;
+			my $number_of_variants = 0;
 			
-			open my $Ofh, '>>', $working_dir . $raw_vcf_file_name_tmp;
-			open my $fh, '<', $raw_vcf_file_name;
-				while (<$fh>)
+			if ( -e $raw_vcf_file_name )
+			{
+				my $raw_vcf_file;
+				if ( !open $raw_vcf_file, '<', $raw_vcf_file_name )
+				{
+					$v2c_check_result{err_value} = $!;
+					$v2c_check_result{err_type} = "cannot_open_vcf";
+					
+					$jobID = 0;
+					next;
+				}
+				
+					binmode($raw_vcf_file);
+					my $md5 = Digest::MD5->new;
+					$md5->addfile($raw_vcf_file);
+					$vcf_md5 = $md5->hexdigest;
+				close $raw_vcf_file;
+			}
+			
+			
+
+			
+			my $md5_ok = 0;
+			if ( -e $working_dir . $v2c_file_name_tmp )
+			{
+				my $fh;
+				if ( !open $fh, '<', $working_dir . $v2c_file_name_tmp )
+				{
+					$v2c_check_result{err_value} = $!;
+					$v2c_check_result{err_type} = "cannot_open_v2c";
+				
+					$jobID = 0;
+					next;
+				}
+
+					my $line_number = 1;
+					while (my $line = <$fh>)
+					{
+						chomp $line;
+						if ( $line =~ /^#/ )
+						{
+							$line =~ s/^#//;
+							
+							if ( $line_number == 1 )
+							{
+								if ( $line eq $reference_md5 )
+								{
+									$md5_ok = 1;
+#									print "V2c check result: OK\n\n";								
+								}
+								else
+								{
+									$v2c_check_result{err_type} = "wrong_reference_md5";
+#									print "V2c check result: wrong_reference_md5\n\n";
+									
+									last;
+								}
+							}
+							elsif ( $line_number == 2 )
+							{
+								
+							
+								if ( $line eq $vcf_md5 )
+								{
+									$md5_ok = 1;
+#									print "V2c check result: OK\n\n";								
+								}
+								else
+								{
+									$v2c_check_result{err_type} = "wrong_vcf_md5";
+#									print "V2c check result: wrong_vcf_md5\n\n";
+									
+									last;
+								}
+							}
+							
+
+						}
+						elsif ( $line =~ /^>/ )
+						{
+							$number_of_variants++;
+							
+						}
+						
+						$line_number++;
+					}
+				close $fh;
+			}
+			else
+			{
+				$v2c_check_result{err_type} = "not_exist";
+#				print "V2c check result: not_exist\n\n";
+			}
+			
+			if ( $md5_ok == 1 )
+			{				
+				my $fh;
+				if ( !open $fh, '<', $raw_vcf_file_name )
+				{
+					$v2c_check_result{err_value} = $!;
+					$v2c_check_result{err_type} = "cannot_open_vcf";
+
+					$jobID = 0;
+					next;
+				}
+				
+					while ( my $line = <$fh> )
+					{
+						chomp $line;
+						if ( $line =~ /^#CHROM/ )
+						{
+							my @data = split("\t", $line);
+							
+							for (my $i = 9; $i < scalar(@data); $i++) # ... do tablicy @linie zapisywane są nazwy analizowanych obiektów
+							{
+								push @linie, $data[$i];
+							}
+							
+							$number_of_individuals = @linie;
+							
+							last;
+						}
+					}
+				close $fh;
+				
+				$v2c_check_result{err_type} = "OK";
+				
+				$vcf_analysis_results{err_code} = 1;
+				$vcf_analysis_results{NoOfIndv} = $number_of_individuals;
+				$vcf_analysis_results{NoOfSNPs} = $number_of_variants;
+			}
+			elsif ( $v2c_check_result{err_type} eq "" )
+			{
+				$v2c_check_result{err_type} = "no_md5";
+#				print "V2c check result: no_md5\n\n";
+			}
+			
+			
+			$jobID = 0;
+		}
+		elsif ($jobID == 8)
+		{
+#			print "CAPS filtrasion start ...\n";
+			$cfw_gf_output_file = $cfw_gf_input_file;
+			$cfw_gf_output_file =~ s/\.txt$/_gf\.txt/;
+			$cfw_gf_output_file =~ s/.*[\\\/]//g;
+			$cfw_gf_output_file = $working_dir . $cfw_gf_output_file;
+			
+			if (-e $cfw_gf_output_file) { unlink $cfw_gf_output_file }
+					
+			$stop = 0;
+			
+			my %cfw_groups_thread = ();
+			my %data_filtered = ();
+			
+			for ( my $i = 1; $i < 4; $i++ )
+			{
+				if ( $cfw_groups{$i}{indv} )
+				{
+					$cfw_groups_thread{$i}{max_err} = $cfw_groups{$i}{max_err} / 100;
+					$cfw_groups_thread{$i}{indv} = [ split(/[, \t\n]+/, $cfw_groups{$i}{indv}) ];
+				}
+				
+			}
+#			print "\$num_filters = " . scalar(keys %cfw_groups_thread) . "\n";
+#			print join(" ", @{$cfw_groups{1}{indv}}) . "\n";
+#			print @{$cfw_groups_thread{1}{indv}};
+#			exit 1;
+			
+			my $Ofh;
+			if ( !open $Ofh, '>>', $cfw_gf_output_file )
+			{
+				@caps_filtration_result = ( 2, $! );
+				
+				$jobID = 0;
+				next;
+			}
+			
+				print $Ofh "#VCF2CAPS_output_file\n\n";
+			close $Ofh;
+			
+			my $fh;
+			if ( !open $fh, '<', $cfw_gf_input_file )
+			{
+				@caps_filtration_result = ( 3, $! );
+				
+				$jobID = 0;
+				next;
+			}
+			
+			my @write2file_filtered_CAPS_result = ();
+			while (<$fh>)
+			{
+				if ( $stop == 0 )
 				{
 					chomp $_;
 					my @data = split("\t", $_);
-					if ($data[0] =~ /^#/ and $begin == 0)
+					if (! defined $data[0]) {next}
+					if ($data[0] =~ /^>/)
 					{
-						if ($data[0] =~ /^#CHROM/ and $begin == 0)
+						$caps_filtered++;
+						if (keys %data_filtered)
 						{
-							$begin = 1;
-						
-							for (my $i = 9; $i < scalar(@data); $i++ )
+							my $code = check_genotypes_vs_filters(\%cfw_groups_thread, \%data_filtered);
+							if ($code == 1)
 							{
-								push @output_std, $i;
-							}
-							
-							print $Ofh join ("\t", @data[@output_std]);
-							print $Ofh "\n";
-						}						
-					}
-					elsif ($begin == 1)
-					{
-						for (my $i = 0; $i < 3; $i++ )
-						{
-							if (! print $Ofh "$data[ $output_std[$i] ]\t")
-							{
-								print "Error in writing to file $raw_vcf_file_name_tmp\n";
-								exit;
+				#				print $data_filtered{id} . "\n";
+								@write2file_filtered_CAPS_result = write2file_filtered_CAPS(\%data_filtered);
+								if ( $write2file_filtered_CAPS_result[1] == 6 )
+								{
+									@caps_filtration_result = ( 2, $write2file_filtered_CAPS_result[0] );
+									
+									$jobID = 0;
+									next;
+								}
+								
+								$caps_filtration_result[1]++;
 							}
 						}
-						
-						my @alt = split(",", $data[ $output_std[3] ]);
-						print $Ofh "[";
-						print $Ofh join(",", @alt);
-						print $Ofh "]";
-						
-						for (my $i = 4; $i < scalar(@output_std); $i++ )
-						{
-							my @output = split(":", $data[ $output_std[$i] ]);	
-							print $Ofh "\t$output[0]";
-						}
-						print $Ofh "\n";
+
+						%data_filtered = ();
+						$data_filtered{id} = $data[0];
 					}
-					elsif ($begin == 0)
+					elsif ($data[0] =~ /^[A-Z][a-z]{2}/)
 					{
-						$vcf_error = 1;
-						last;
+						$data_filtered{enz} = $_;
+					}
+					elsif ($data[0] =~ /^ref/)
+					{
+						$data_filtered{ref} = $_;
+					}
+					elsif ($data[0] =~ /^alt/)
+					{
+						if ($data_filtered{alt})
+						{
+							$data_filtered{alt} = $data_filtered{alt} . ":::" . $_;
+						}
+						else
+						{
+							$data_filtered{alt} = $_;
+						}
+					}
+					elsif ($data[0] =~ /^[0-9\.]/)
+					{
+						my @spliced = @data;
+						splice @spliced, 0, 2;
+						
+						if ($data_filtered{genot_print})
+						{
+							$data_filtered{genot_print} = $data_filtered{genot_print} . ":::" . $_;
+						}
+						else
+						{
+							$data_filtered{genot_print} = $_;
+						}
+						
+						if ($data[0] =~ /^[0-9]/)
+						{
+							if (exists $data_filtered{genot}{$data[1]}) # gdyby były np. dwie heterozygoty, to łączy ze sobą wszystkie obiekty
+							{
+								$data_filtered{genot}{$data[1]} = $data_filtered{genot}{$data[1]} . "\t" . join("\t", @spliced);
+							}
+							else
+							{
+								$data_filtered{genot}{$data[1]} = join("\t", @spliced);
+							}
+						}
+					}
+				}
+				
+				
+				
+			}
+			
+			if (keys %data_filtered)
+			{
+				my $code = check_genotypes_vs_filters(\%cfw_groups_thread, \%data_filtered);
+				if ($code == 1)
+				{
+			#				print $data_filtered{id} . "\n";
+					write2file_filtered_CAPS(\%data_filtered);
+					$caps_filtration_result[1]++;
+				}
+			}
+			close $fh;
+			
+			$caps_filtration_result[0] = 1;
+			$jobID = 0;
+#			print "CAPS filtrasion finished ...\n";
+			
+		}
+		elsif ($jobID == 9)
+		{
+			$total_caps_number = 0;
+			
+			my $fh;
+			
+			if ( !open $fh, '<', $cfw_gf_input_file )
+			{
+				$vcf2capsOutput_results{err_value} = $!;
+				$vcf2capsOutput_results{err_code} = 6;
+				
+				$jobID = 0;
+				next;
+			}
+			
+				while (<$fh>)
+				{
+					chomp $_;
+					if ( $_ eq "#VCF2CAPS_output_file" )
+					{
+						$vcf2capsOutput_results{err_code} = 1;
+					}
+					elsif ( $_ =~ /^>/ )
+					{
+						$total_caps_number++;
+					}
+				}
+				if ( $vcf2capsOutput_results{err_code} == 0 )
+				{
+					$vcf2capsOutput_results{err_code} = 2;
+				}
+			
+			close $fh;
+#			print "$total_caps_number\n";
+			$jobID = 0;
+#			print "Checking vcf2caps output file finished.\n";
+		}
+		elsif ($jobID == 10)
+		{
+			$total_caps_number = 0;
+			my $file_ok = 0;
+			
+			my $fh;
+			
+			if ( !open $fh, '<', $cfw_scf_input_file )
+			{
+				$vcf2capsOutput_results{err_value} = $!;
+				$vcf2capsOutput_results{err_code} = 6;
+				
+				$jobID = 0;
+				next;
+			}
+			
+				while (<$fh>)
+				{
+					chomp $_;
+					if ( $_ eq "#VCF2CAPS_output_file" )
+					{
+						$file_ok = 1;
+					}
+					elsif ( $_ =~ /^>/ )
+					{
+						$total_caps_number++;
+					}
+				}
+				
+				if ( $file_ok == 1 )
+				{
+					$vcf2capsOutput_results{err_code} = 1;
+				}
+				
+				if ( $vcf2capsOutput_results{err_code} == 0 )
+				{
+					$vcf2capsOutput_results{err_code} = 2;
+				}
+			
+			close $fh;
+#			print "$total_caps_number\n";
+			$jobID = 0;
+#			print "Checking vcf2caps output file finished.\n";
+		}
+		elsif ($jobID == 11)
+		{
+			$total_caps_number = 0;
+			my %variants_name_uniq = ();
+			my $file_ok = 0;
+			
+			my $fh;
+			if ( !open $fh, '<', $cfw_c2f_input_file )
+			{
+				$vcf2capsOutput_results{err_value} = $!;
+				$vcf2capsOutput_results{err_code} = 6;
+				
+				$jobID = 0;
+				next;
+			}
+			
+				while (<$fh>)
+				{
+					chomp $_;
+					if ( $_ eq "#VCF2CAPS_output_file" )
+					{
+						$file_ok = 1;
+					}
+					elsif ( $_ =~ /^>/ and !exists $variants_name_uniq{$_} )
+					{
+						$total_caps_number++;
+						$variants_name_uniq{$_} = 1;
+					}
+				}
+				
+				if ( $file_ok == 1 )
+				{
+					$vcf2capsOutput_results{err_code} = 1;
+				}
+				
+				if ( $vcf2capsOutput_results{err_code} == 0 )
+				{
+					$vcf2capsOutput_results{err_code} = 2;
+				}
+			
+			close $fh;
+#			print "$total_caps_number\n";
+			$jobID = 0;
+#			print "Checking vcf2caps output file finished.\n";
+		}
+		elsif ($jobID == 12)
+		{
+#			print "Start convertion of vcf2caps output file into FASTA format ...\n";
+			$cfw_c2f_output_file = $cfw_c2f_input_file;
+			$cfw_c2f_output_file =~ s/\.txt$/\.fasta/;
+			$cfw_c2f_output_file =~ s/.*[\\\/]//g;
+			$cfw_c2f_output_file = $working_dir . $cfw_c2f_output_file;
+			
+			if (-e $cfw_c2f_output_file) { unlink $cfw_c2f_output_file }
+			
+			$stop = 0;
+			my %variants_name_uniq = ();
+			my $variant = "";
+			
+			my $Ofh;
+			if ( !open $Ofh, '>>', $cfw_c2f_output_file )
+			{
+				$caps_to_fasta_result[0] = 2;
+				$caps_to_fasta_result[1] = $!;
+				
+				$jobID = 0;
+				next;
+			}
+			
+			my $fh;
+			if ( !open $fh, '<', $cfw_c2f_input_file )
+			{
+				$caps_to_fasta_result[0] = 3;
+				$caps_to_fasta_result[1] = $!;
+				
+				$jobID = 0;
+				next;
+			}
+				
+				while (<$fh>)
+				{
+					if ($stop == 0)
+					{
+						chomp $_;
+					
+						if ( $_ =~ /^>/ and !exists $variants_name_uniq{$_} )
+						{
+							print $Ofh "$_\n";
+							$variants_name_uniq{$_} = 1;
+							$variant = $_;
+							$caps_filtered++;
+							$caps_to_fasta_result[1]++;
+						}
+						elsif ( $_ =~ /^ref/ and $variant ne "" )
+						{
+							print $Ofh ( split("\t", $_) )[4] . "\n";
+							$variant = "";
+						}
 					}
 				}
 			close $fh;
+			close $Ofh;
+			$caps_to_fasta_result[0] = 1;
+			$jobID = 0;
+#			print "Finished convertion of vcf2caps output file into FASTA format.\n";
+		}
+		elsif ($jobID == 13)
+		{
+#			print "Start checking reference index file\n";
+			$reference_md5 = "";
 			
-			if ($vcf_error == 0) { %raw_vcf_analysis_results = (err_code => 1) }
-			elsif ($vcf_error == 1) { %raw_vcf_analysis_results = (err_code => 2) }
+			if ( -e $reference_file_name )
+			{
+				my $reference_file;
+				
+				if ( !open $reference_file, '<', $reference_file_name )
+				{
+					$reference_index_check_result{error_value} = $!;
+					$reference_index_check_result{error_code} = "cannot_open_ref";
+					
+					$jobID = 0;
+					next;
+				}
+				
+					binmode($reference_file);
+					my $md5 = Digest::MD5->new;
+					$md5->addfile($reference_file);
+					$reference_md5 = $md5->hexdigest;
+				close $reference_file;
+			}
+			
+			my $reference_index_file_name = $reference_file_name;
+			$reference_index_file_name =~ s/\..+$/\.index/g;
+			$reference_index_file_name =~ s/.*[\\\/]//g;
+			$reference_index_file_name = $working_dir . $reference_index_file_name;
+			
+#			print "\$reference_index_file_name: $reference_index_file_name\n";
+			if ( -e $reference_index_file_name )
+			{
+				my $fh;
+
+				if ( !open $fh, '<', $reference_index_file_name )
+				{
+					$reference_index_check_result{error_value} = $!;
+					$reference_index_check_result{error_code} = "cannot_open_index";
+					
+					$jobID = 0;
+					next;
+				}
+				
+					while (my $line = <$fh>)
+					{
+						chomp $line;
+						
+						if ( $line =~ /^#/ )
+						{
+							$line =~ s/^#//;
+							
+							if ( $line eq $reference_md5 )
+							{
+								$reference_index_check_result{error_code} = "OK";
+#								print "Reference index check result: OK\n\n";								
+							}
+							else
+							{
+								$reference_index_check_result{error_code} = "wrong_md5";
+#								print "Reference index check result: wrong_md5\n\n";
+							}
+							last;
+						}
+					}
+				close $fh;
+			}
+			else
+			{
+				$reference_index_check_result{error_code} = "not_exist";
+#				print "Reference index check result: not_exist\n\n";
+			}
+			
+			if ( $reference_index_check_result{error_code} eq "OK" )
+			{
+				$reference_analysis_results[0] = 1;
+			}
+			elsif ( $reference_index_check_result{error_code} eq "" )
+			{
+				$reference_index_check_result{error_code} = "no_md5";
+#				print "Reference index check result: no_md5\n\n";
+			}
+			
+			$jobID = 0;
+		}
+		elsif ($jobID == 14)
+		{
+			my $url = 'http://rebase.neb.com/rebase/link_gcg';
+			my $file = $working_dir . "link_gcg";
+
+			my $response_code = getstore($url, $file);
+			if ($response_code != 200)
+			{
+				$download_enzyme_db_result = 2;
+			}
+			elsif ($response_code == 200)
+			{
+				$enzyme_file_name = $file;				
+				$download_enzyme_db_result = 1;
+			}
 			
 			$jobID = 0;
 		}
@@ -2832,12 +4785,216 @@ sub work
 	}
 }
 
+sub check_genotypes_vs_filters
+			{
+				(my $cfw_groups_thread, my $data_filtered) = @_;
+				my $num_filters = scalar(keys %$cfw_groups_thread);
+#				print "\$num_filters = $num_filters\n";
+				my %filters_results = ();
+				my %filters_matched_indv = ();
+				my $err_No = 0;
+				my $number_of_matched_genotypes = 0;
+				
+				my $number_of_genotypes = scalar( keys %{$$data_filtered{genot}} );
+
+				GENOT: foreach my $genot ( grep { $_ =~ /^\[/ } keys %{$$data_filtered{genot}} )
+				{
+					my $duplicate = 0;
+			#		print "$genot\n" if ($log == 1);
+					my %indviduals_per_genot = map { $_ => 1 } split("\t", $$data_filtered{genot}{$genot});
+					
+					foreach my $filter ( sort keys %$cfw_groups_thread )
+					{
+						$err_No = 0;
+			#			print "Filter $filter\n" if ($log == 1);
+#						print @{$$cfw_groups_thread{$filter}{indv}};
+#						print $$cfw_groups_thread{$filter}{max_err};
+						
+						
+			#			print join(" ", @{$filters{$filter}}) . " ::: " . $$data_filtered{genot}{$genot} . "\n";
+			#			print Dumper $filters;
+						my $No_of_indv_filter_genotypes = scalar( @{$$cfw_groups_thread{$filter}{indv}} );
+						
+						foreach my $indv ( @{$$cfw_groups_thread{$filter}{indv}} )
+						{
+							if ( ! exists($indviduals_per_genot{$indv}) )
+							{
+								$err_No++;
+							}
+							else
+							{
+								if ( !defined $filters_matched_indv{$genot}{$filter} )
+								{
+									$filters_matched_indv{$genot}{$filter} = 1;
+								}
+								else
+								{
+									$filters_matched_indv{$genot}{$filter}++;
+								}
+								
+							}
+			#				else
+			#				{
+			#					print "$indv ::: $indviduals_per_genot{$indv}\n" if ($log == 1);
+			#				}
+						}
+						
+						my $err_percent = $err_No / $No_of_indv_filter_genotypes;
+			#			print "$err_No / $No_of_indv_filter_genotypes = $err_percent\n" if ($log == 1);
+						if ( $err_percent <= $$cfw_groups_thread{$filter}{max_err} )
+						{
+						#	$filters_results{$genot} = \@{ $$cfw_groups_thread{$filter}{indv} };
+							$filters_results{$genot} = $filter;
+			#				print "\$err_percent = $err_percent\n" if ($log == 1);
+							$duplicate++;
+			#				print "$$data_filtered{id}\t" . join(" ", @{$filters{$filter}{indv}}) . " ::: " . $$data_filtered{genot}{$genot} . "\n";
+			#				next GENOT; # If the set of individuals matches the specific genotype, remain genotypes are omited;
+						}
+						
+					}
+					if ($duplicate > 1)
+					{
+						return 0;
+					}
+					
+				}
+			#	print "$numOK ::: $num_filters\n";
+				my @correct_genotypes = sort( keys %filters_results );
+				if (! @correct_genotypes)
+				{
+					return 0;
+				}
+				
+				if ($num_filters == 3)
+				{
+					if ( scalar(@correct_genotypes) == $num_filters)
+					{
+						return 1;
+					}
+					else
+					{
+						return 0;
+					}
+				}
+				elsif ( $num_filters == 2 )
+				{
+					if ( $oneFiltGroup_twoGenotypes == 1  )
+					{
+						if ( $number_of_genotypes > 2 and scalar( @correct_genotypes ) == 1 )
+						{
+							if ( $correct_genotypes[0] eq "[-/-]" or $correct_genotypes[0] eq "[+/+]" )
+							{
+			#					print "correct_genotypes: " . scalar( @correct_genotypes ) . "\n" if ( $log == 1 );
+								my $total_match = 0;
+								my $total_genotypes = 0;
+								my $selected_filter;
+								foreach my $genot ( grep { $_ =~ /^\[/ } keys %{$$data_filtered{genot}} )
+								{
+									next if ( $genot eq $correct_genotypes[0] );
+									
+									
+									
+									
+									foreach my $filter ( keys %$cfw_groups_thread )
+									{
+										if ($filters_results{$genot})
+										{
+											next if ( $filter == $filters_results{$genot} );
+										}
+										
+										$selected_filter = $filter;
+										$total_genotypes += scalar( split("\t", $$data_filtered{genot}{$genot}) );
+										if ( $filters_matched_indv{$genot}{$filter} )
+										{
+											$total_match += $filters_matched_indv{$genot}{$filter};
+										}
+										
+									}									
+								}
+								
+								my $err_percent = 1 - ( $total_match / scalar( @{$$cfw_groups_thread{$selected_filter}{indv}} ) );
+								
+								if ( $err_percent <= $$cfw_groups_thread{$selected_filter}{max_err}  )
+								{
+									return 1;
+								}
+								
+							}
+							else
+							{
+								return 0;
+							}
+						}
+						elsif ( scalar( @correct_genotypes ) == 2 )
+						{
+							return 1;
+						}
+						else
+						{
+							return 0;
+						}
+						
+					}
+					else
+					{
+						if ( scalar( @correct_genotypes ) == 2)
+						{
+							return 1;
+
+						}
+						else
+						{
+							return 0;
+						}
+					}
+
+				}
+
+				
+			}
+
+			sub write2file_filtered_CAPS
+			{
+				my $data_filtered = $_[0];
+				
+				my $Ofh;
+				if ( !open $Ofh, '>>', $cfw_gf_output_file )
+				{
+					return ($!, 6);
+				}
+				
+				print $Ofh "$$data_filtered{id}\n";
+				print $Ofh "$$data_filtered{enz}\n";
+				print $Ofh "$$data_filtered{ref}\n";
+				
+				foreach my $alt ( split(":::", $$data_filtered{alt}) )
+				{
+					print $Ofh "$alt\n";
+				}
+				
+				foreach my $genot ( split(":::", $$data_filtered{genot_print}) )
+				{
+					print $Ofh "$genot\n";
+				}
+				
+				close $Ofh;
+				
+				return ("", 1);
+			}
+
+
+
+
+
+
+
+
 # The function extracts genotypes and variant surrounding sequences on the basis of input files (sVCF and reference) and store them in 'snps.txt' file.
 sub vcf2snps
 {
-	print "vcf2snps start confirmed\n";
-	print "\$working_dir: $working_dir\n";
-	$seqExtractor_error_code[1] = 0;
+#	print "vcf2snps start confirmed\n";
+#	print "\$working_dir: $working_dir\n";
+	
 	my $genotypesLength = $_[0];
 	my $error = 0;
 #	my $line = 0;
@@ -2845,39 +5002,63 @@ sub vcf2snps
 	@sequencesNotPresentInRef = ();
 	$snpsNo = 0;
 	@markersOnTheEdge = (); # Tablica zawierająca nazwy markerów, które są bliżej któregokolwiek końca niż wartość zawarta w polu 'DNA sequence length ...'
+	my $v2c_file_name_tmp = $raw_vcf_file_name;
+	$v2c_file_name_tmp =~ s/.*[\\\/]//g;
+	$v2c_file_name_tmp =~ s/\..+$/\.v2c/;
 	
-	my $prefix = $_[1];
-	$prefix =~ s/\.[A-Za-z]+$//; # usunięcie suffixu '.fasta' lub '.fa' z nazwy pliku
+	my $reference_file_name_tmp = $_[1];
+	$reference_file_name_tmp =~ s/\..+$//; # usunięcie suffixu '.fasta' lub '.fa' z nazwy pliku
+	$reference_file_name_tmp =~ s/.*[\\\/]//g;
+	
 	my %chrom_offset = (); # hash w którym będzie zapisywany ID chromosomu oraz pozycja kursora (offset)
-	open $fh, '<', $prefix . ".index";
+	my $fh;
+	if ( !open $fh, '<', $working_dir . $reference_file_name_tmp . ".index" )
+	{
+		return($!,3);
+	}
+	
 		while (<$fh>)
 		{
-			chomp $_;
+			chomp $_;			
 			my @data = split("\t", $_);
+			if ($data[0] =~ /^#/) { next }
+			
 			$data[0] =~ s/>//;
 			$data[0] =~ s/ .+//g;
-			$chrom_offset{$data[0]} = [($data[1],$data[2],$data[3],$data[4])];
+			$chrom_offset{$data[0]} = [($data[1],$data[2],$data[3],$data[4])];	
 		}
 	close $fh;
 	my $chrom_offset = \%chrom_offset;
 	
 	
-	if (-e "$working_dir" . "snps.txt") {unlink "$working_dir" . "snps.txt"}
+	if (-e $working_dir . $v2c_file_name_tmp) {unlink $working_dir . $v2c_file_name_tmp}
+	
+	if ( !open $fh, '<', $raw_vcf_file_name )
+	{
+		return($!,4);
+	}
+	
+	my $Ofh;
+	if ( !open $Ofh, '>>', $working_dir . $v2c_file_name_tmp )
+	{
+		return($!,5);
+	}
 
-	open my $fh, '<', "$sVCF_file_name";
-	open my $Ofh, '>>', "$working_dir" . "snps.txt";
-
+	print $Ofh "#$reference_md5\n";
+	print $Ofh "#$vcf_md5\n";
+	
 	while (my $bier = <$fh>)
 	{
-		$line_vcf++;
-
 		chomp $bier;
 		my @input = (split("\t", $bier)); # Zapis do tablicy @input wartości poszczególnych kolumn aktualnie analizowanego wiersza
-		if ($input[0] eq "#CHROM") {next} # Jeżeli analizowana linia zawiera tekst '#CHROM', to jest ona pomijana
-		my $RefSnpLen = scalar(split("", $input[2])); # Zapis do zmiennej długości sekwencji allelu SNPu z referencji
-		my $ref_snp = $input[2]; # scalar zawierający SNP w sekwencji referencyjnej
-		my $AltSnp = $input[3]; # Zapis do zmiennej $AltSnp wartości obecnej w 4 kolumnie zawierającej sekwencje wszystkiech alternatywnych alleli SNPu zamknięte w nawiasie kwadratowycm
-		$AltSnp =~ s/[\[\]]//g; # Usunięcie ze zmiennej $AltSnp (zawierającej sekwencje wszystkiech alternatywnych alleli SNPu) nawiasów kwadratowych
+		
+		if ($input[0] =~ /^#/) { next } # Jeżeli analizowana linia zawiera tekst '#CHROM', to jest ona pomijana
+		
+		$line_vcf++;
+		my $RefSnpLen = scalar(split("", $input[3])); # Zapis do zmiennej długości sekwencji allelu SNPu z referencji
+		my $ref_snp = $input[3]; # scalar zawierający SNP w sekwencji referencyjnej
+		my $AltSnp = $input[4]; # Zapis do zmiennej $AltSnp wartości obecnej w 4 kolumnie zawierającej sekwencje wszystkiech alternatywnych alleli SNPu zamknięte w nawiasie kwadratowycm
+#		$AltSnp =~ s/[\[\]]//g; # Usunięcie ze zmiennej $AltSnp (zawierającej sekwencje wszystkiech alternatywnych alleli SNPu) nawiasów kwadratowych
 		my @AltSnp = split(",", $AltSnp); # Zapis do tablicy @AltSnp sekwencji wszystkich alternatywnych alleli SNPu
 		
 		
@@ -2913,29 +5094,33 @@ sub vcf2snps
 
 		my @genotypes = (); # Tablica zawierająca kody genotypów
 		
-		for (my $i = 4; $i < scalar(@input); $i++) # Dla każdej rośliny ...
+		for (my $i = 9; $i < scalar(@input); $i++) # Dla każdej rośliny ...
 		{
-			if ( ( split("/", $input[$i]) )[0] eq "\." )
+			my @genotype = split(":", $input[$i]);
+			my @alleles = split(/[\|\/]/, $genotype[0]);
+			
+			if ( $alleles[0] eq "." or $alleles[1] eq "." )
 			{
-				push @genotypes, $input[$i];
+				push @genotypes, $genotype[0];
 			}
 			else
 			{
-				if ( ( split("/", $input[$i]) )[0] <= ( split("/", $input[$i]) )[1] ) # ... sprawdza, czy wartości liczbowe alleli w genotypie są ustawione w kolejności wzrastającej, tj. jeżeli np. genotyp jest równy 1/2, to ...
+				if ( $alleles[0] <= $alleles[1] ) # ... sprawdza, czy wartości liczbowe alleli w genotypie są ustawione w kolejności wzrastającej, tj. jeżeli np. genotyp jest równy 1/2, to ...
 				{
-					push @genotypes, $input[$i]; # ... do tablicy @geontypes dodawany jest dany genotyp
+					push @genotypes, $genotype[0]; # ... do tablicy @geontypes dodawany jest dany genotyp
 				}
 				else # Jeżeli wartości liczbowe alleli w genotypie są ustawione w kolejności maljeącej, tj. jeżeli np. genotyp jest równy 2/1, to ...
 				{
-					push @genotypes, ( split("/", $input[$i]) )[1] . "/" . ( split("/", $input[$i]) )[0]; # ... do tablicy @geontypes dodawany jest dany genotyp o odwrotnej kolejności alleli, tj. 2/1 (przed) -> 1/2 (po)
+					push @genotypes, $alleles[1] . "/" . $alleles[0]; # ... do tablicy @geontypes dodawany jest dany genotyp o odwrotnej kolejności alleli, tj. 2/1 (przed) -> 1/2 (po)
 				}
 			}			
-		}		
+		}
 
 		my @seqExtractorOut = seqExtractor($reference_file_name,"$input[0]:$from-$snp_min",$chrom_offset); # pobiera całą sekwencję rejonu SNPu (z jego 'lewej' strony) z referencji
-	
-		print $Ofh ">$input[0]:$input[1]\n"; # Zapis identyfikatora SNPu do pliku wyjściowego 'out.txt'
-		print $Ofh join("\t",@genotypes)."\n"; # Zapis genotypu każdej linii do pliku wyjściowego 'out.txt'
+		
+		
+		print $Ofh ">$input[0]:$input[1]\n"; # Zapis identyfikatora SNPu do pliku wyjściowego 'caps_markers.txt'
+		print $Ofh join("\t",@genotypes)."\n"; # Zapis genotypu każdej linii do pliku wyjściowego 'caps_markers.txt'
 		
 		my $extracted_sequence = $seqExtractorOut[0];	
 
@@ -2969,7 +5154,7 @@ sub vcf2snps
 		$snpsNo++;
 
 	}
-	print "vcf2snps finished\n";
+#	print "vcf2snps finished\n";
 	return ("",1);
 }
 
@@ -2986,19 +5171,26 @@ sub caps_miner
 	
 	$numberOfSNPs = 0;
 	my $linie_ile = scalar(@linie);
-	print "Analysing ...\n\n";
-	if (-e "$working_dir" . "out.txt") { unlink "$working_dir" . "out.txt" }
+#	print "Analysing ...\n\n";
+	if (-e "$working_dir" . "caps_markers.txt") { unlink "$working_dir" . "caps_markers.txt" }
 	
 	$enzyme_zip = 0;
 
-	my $prefix = $_[1];
-	$prefix =~ s/\.[A-Za-z]+$//; # usunięcie suffixu '.fasta' lub '.fa' z nazwy pliku
+	my $reference_file_name_tmp = $_[1];
+	$reference_file_name_tmp =~ s/\..+$//; # usunięcie suffixu '.fasta' lub '.fa' z nazwy pliku
+	$reference_file_name_tmp =~ s/.*[\\\/]//g;
+	
 	my %chrom_offset = (); # hash w którym będzie zapisywany ID chromosomu oraz pozycja kursora (offset)
-	open $fh, '<', $prefix . ".index"; # otwarcie pliku indeksu
+	my $fh;
+	if ( !open $fh, '<', $working_dir . $reference_file_name_tmp . ".index" )
+	{
+		return($!, 3);
+	}
 		while (<$fh>)
 		{
 			chomp $_;
 			my @data = split("\t", $_);
+			if ($data[0] =~ /^#/) { next }
 			$data[0] =~ s/>//;
 			$data[0] =~ s/ .+//g;
 			$chrom_offset{$data[0]} = [($data[1],$data[2],$data[3],$data[4])];
@@ -3028,39 +5220,36 @@ sub caps_miner
 		$enzyme_zip++;
 	}
 	@selected_enz_names_tmp = uniq(@selected_enz_names_tmp);
-
-	### UWAGA - rozważyć zastąpienie poniższej pętli zmienną $vcf_analysis_results{NoOfSNPs}
-	##10 Zapis do zmiennej $numberOfAllSNPs liczby wszystkich SNP'ów obecnych w pliku 'snps.txt'
-	open my $SNP, '<', "$working_dir" . "snps.txt"; # Otwarcie pliku 'snps.txt' (plik wsadowy powstały po przekształceniu pliku VCF)
-		my $numberOfAllSNPs = 0; # Zmienna przechowująca liczbę wszystkich SNP'ów obecnych w pliku 'snps.txt'
-		
-		while (my $fancy_snp = <$SNP>)
-		{
-			chomp $fancy_snp;
-			if ($fancy_snp =~ /^>/) # Jeżeli linia rozpoczyna się od znaku zachęty '>', to ...
-			{
-				$numberOfAllSNPs++; # ... wartość zmiennej $numberOfAllSNPs jest zwiększana o 1
-			}
-		}
-		
-	close $SNP;
-	##10
-
-	$actualSNPNo = 0; # Zmienna $actualSNPNo przechowuje nr aktualnie badanego SNP'u
-
 	
-	open $SNP, '<', "$working_dir" . "snps.txt"; # Otwarcie pliku 'snps.txt' (plik wsadowy powstały po przekształceniu pliku VCF)
+	
+	$actualSNPNo = 0; # Zmienna $actualSNPNo przechowuje nr aktualnie badanego SNP'u
+	
+	
+	if ( !open $fh, '>>', "$working_dir" . "caps_markers.txt" )
+	{
+		return($!, 4);
+	}
+	print $fh "#VCF2CAPS_output_file\n\n";
+	
+	
+	my $SNP;
+	if ( !open $SNP, '<', $v2c_file_name ) # Otwarcie pliku 'snps.txt' (plik wsadowy powstały po przekształceniu pliku VCF)
+	{
+		return($!, 5);
+	}
+	
 	while (my $bierSNP = <$SNP>)
 	{
-		if ($stop == 1) { return ($numberOfSNPs,2) }
+		if ($stop == 1) { return ($numberOfSNPs, 2) }
 		
 		chomp $bierSNP;
-
+		
 		my $IndvSeq = []; # Tablica zawierająca w każdej pozycji tablice z indywidualnymi nukleotydami fragmentu DNA z daną wersją alleliczną analizowanego SNP'u
 		my @IndvSeq_snpLen_snp = (); # Tablica zawierająca długości każdej wersji allelicznej analizowanego SNP'u
 		my @IndvSeq_snp = (); # Tablica zawierająca sekwencję każdej wersji allelicznej analizowanego SNP'u
 		
-		if ($bierSNP =~ />/) # Jeżeli linia rozpoczyna się od znaku zachęty '>', to ...
+		if ($bierSNP =~ /^#/) { next }
+		elsif ($bierSNP =~ /^>/) # Jeżeli linia rozpoczyna się od znaku zachęty '>', to ...
 		{
 			$seqName = $bierSNP; # ... zmiennej $seqName przyporządkowana jest wartość zmiennej $bierSNP przechowująca nazwę SNPu oraz ...
 			$actualSNPNo++; # ... wartość zmiennej $actualSNPNo (nr aktualnie badanego SNP'u) jest zwiększana o 1
@@ -3086,7 +5275,6 @@ sub caps_miner
 			my $enz_No = @selected_enz_names_tmp; # Zapis do zmiennej $enz_No liczby unikalnych sekwencji rozpoznawanych przez enzymy
 		#	print "\$enz_No: $enz_No\n";
 		#	print join("\n", @selected_enz_names_tmp);
-			
 			
 			
 			for (my $i = 0; $i < $SNP_alleles_No; $i++) # Dla każdego allelu danego SNP'u ...
@@ -3219,9 +5407,11 @@ sub caps_miner
 				my $DigestedGenotypes_No_homo = 0; # Zmienna $DigestedGenotypes_No_homo przechowuje liczbę genotypów, dla których obydwa allele są trawione przez aktualnie badany enzym
 				my $DigestedGenotypes_No_het = 0; # Zmienna $DigestedGenotypes_No_het przechowuje liczbę genotypów, dla których tylko jeden z dwóch alleli jest trawiony przez aktualnie badany enzym
 				my $nullGenotypes = 0;
+
 				for (my $i = 0; $i < $linie_ile; $i++) # Dla każdej analizowanej rośliny ...
 				{
 					my $genotypp = $genotypes{$linie[$i]}; # ... do zmiennej $genotypp jest zapisywany kod jej genotypu (0/0, 0/1, 1/2, itp.). Następnie ...
+
 					my @genotypp_indv = split("/", $genotypp); # Do tablicy @genotypp_indv zapisywane są kody poszczególnych alleli SNPu (0 - ref, 1 - alternatywny, 2 - kolejny alternatywny, itd.)
 					
 					if ($genotypp_indv[0] ne "\.")
@@ -3272,16 +5462,20 @@ sub caps_miner
 #				exit;
 				##14
 
-				##15 Zapis do pliku 'out.txt' fragmentu sekwencji z daną wersją alleliczną analizowanego SNP'u (dla każdej rośliny)
+				##15 Zapis do pliku 'caps_markers.txt' fragmentu sekwencji z daną wersją alleliczną analizowanego SNP'u (dla każdej rośliny)
 				my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
 				my @genotypes_uniq_tmp = grep { $_ ne "\.\/\." } @genotypes_uniq; # Zapisuje do tablicy @genotypes_uniq_tmp listę unikalnych genotypów za wyjątkiem './.'. Do dalszych analiz będą brane jedynie te markery, które mają co najmniej 2 różne genotypy (nie uwzględniając './.')
 				
-
-				if ($polymorphicSNPsOnly == 1 and $numberOfMatches_all > 0 and $DigestedGenotypes_No_homo < ( $linie_ile - $nullGenotypes ) and scalar(@genotypes_uniq_tmp) > 1 ) # (Aktywna opcja 'Mine CAPS from polymorphic ...') Jeżeli pośród analizowanych roślin są genotypy trawione i nietrawione, to wynik jest zapisywany do pliku
+#				print "\$numberOfMatches_all: $numberOfMatches_all\n";
+#				print "\$DigestedGenotypes_No_homo: $DigestedGenotypes_No_homo\n";
+#				print "\$linie_ile - \$nullGenotypes: $linie_ile - $nullGenotypes\n";
+#				print "scalar(\@genotypes_uniq_tmp): " . scalar(@genotypes_uniq_tmp) . "\n";
+				if ($numberOfMatches_all > 0 and ( $DigestedGenotypes_No_homo > 0 or $DigestedGenotypes_No_het > 0 ) and $DigestedGenotypes_No_homo < ( $linie_ile - $nullGenotypes ) and scalar(@genotypes_uniq_tmp) > 1 ) # (Aktywna opcja 'Mine CAPS from polymorphic ...') Jeżeli pośród analizowanych roślin są genotypy trawione i nietrawione, to wynik jest zapisywany do pliku
 				{ 
 					$numberOfSNPs++;
+#					print "\$numberOfSNPs: $numberOfSNPs\n";
 
-					my ($chrom,$snp) = split(":",$seqName); # Ekstrakcja z nazwy analizowanego markera/SNP'u nazwy sekwencji/chromosomu na którym jest zlokalizowany SNP ($chrom) oraz nr nukleotydu w obrębie tej sekwencji/chromosomu w którym jest zlokalizowany dany SNP lub od którego rozpoczyna się sekwencja indelu ($snp)
+					my ($chrom,$snp) = split(":",$seqName); # Ekstrakcja z nazwy analizowanego markera/SNP'u nazwy sekwencji/chromosomu na którym jest zlokalizowany SNP ($chrom) oraz nr nukleotydu w obrębie tej sekwencji/chromosomu w którym jest zlokalizowany dany SNP lub od którego rozpoczyna się sekwencja InDelu ($snp)
 					my $snp_min = $snp - 1; # Do zmiennej $snp_min zapisywana jest lokalizacja nukleotydu znajdującego się tuż przed SNP'em
 					$chrom =~ s/>//; # Usunięcie z nazwy sekwencji/chromosomu znaku zachęty '>'
 					my $taker_from = $snp - $seq_len; # Zapis do zmiennej $taker_from numeru nukleotydu od którego będzie rozpoczynała się ekstrachowana sekwencja
@@ -3295,7 +5489,9 @@ sub caps_miner
 						next;
 					}
 					
-					open my $fh, '>>', "$working_dir" . "out.txt"; # Otwarcie do zapisu pliku wynikowego 'out.txt'
+					
+					
+						
 						print $fh "$seqName\n";
 						my $enz_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[-1];
 						my $tmp = $selected_enz_names_mix{$selected_enz_names_tmp[$i]};
@@ -3330,19 +5526,19 @@ sub caps_miner
 							
 							my @taker = seqExtractor($reference_file_name,"$chrom:$taker_from-$snp_min",$chrom_offset); # Ekstrakcja 'lewej' części sekwencji (jej ostatni nukleotyd znajduje się tuż przez SNP'em referencji)
 							$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
-							print $fh $taker[0] . $IndvSeq_snp[$i]; # Zapis do pliku 'out.txt' 'lewej' części sekwencji ($taker[0]) oraz sekwencji samego SNP'u ($IndvSeq_snp[0])
+							print $fh $taker[0] . $IndvSeq_snp[$i]; # Zapis do pliku 'caps_markers.txt' 'lewej' części sekwencji ($taker[0]) oraz sekwencji samego SNP'u ($IndvSeq_snp[0])
 							
 							@taker = seqExtractor($reference_file_name,"$chrom:$snp_plus-$taker_to",$chrom_offset); # Ekstrakcja 'prawej' części sekwencji (jej pierwszy nukleotyd znajduje się tuż za SNP'em referencji)
 							$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
-							print $fh "$taker[0]\n"; # Zapis do pliku 'out.txt' 'prawej' części sekwencji ($taker[0])
+							print $fh "$taker[0]\n"; # Zapis do pliku 'caps_markers.txt' 'prawej' części sekwencji ($taker[0])
 						}
 						
 						#my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
 
 						foreach my $genotype_uniq ( sort{$b cmp $a} @genotypes_uniq ) # Dla każdego rodzaju genotypu ...
 						{
-							print $fh "$genotype_uniq\t"; # ... zapis do pliku wynikowego 'out.txt' nazwy genotypu, następnie ...
-							print $fh "["; # ... zapis do pliku wynikowego 'out.txt' nawiasu '['
+							print $fh "$genotype_uniq\t"; # ... zapis do pliku wynikowego 'caps_markers.txt' nazwy genotypu, następnie ...
+							print $fh "["; # ... zapis do pliku wynikowego 'caps_markers.txt' nawiasu '['
 							
 							my $c = 0; # Zmienna określająca z który allel genotypu jest aktualnie analizowany (0 - allel pierwszy, 1 - allel drugi)
 							foreach my $indv_allele ( split("/", $genotype_uniq) ) # Dla każdego allelu wchodzącego w skład danego genotypu ...
@@ -3355,7 +5551,7 @@ sub caps_miner
 								{
 									if ($matches1{$indv_allele} == 0) # ... jeżeli nie znajduje się w miejscu rozpoznawanym przez enzym, to ...
 									{
-										print $fh "-"; # ... zapisywany do pliku wynikowego 'out.txt' jest znak '-'
+										print $fh "-"; # ... zapisywany do pliku wynikowego 'caps_markers.txt' jest znak '-'
 									}
 									else
 									{
@@ -3385,118 +5581,9 @@ sub caps_miner
 							print $fh "\n"; # Po przeanalizowaniu danego rodzaju genotypu drukowany jest znak nowej linii '\n'
 						}
 						print $fh "\n";
-					close $fh;
-				}
-				elsif ($polymorphicSNPsOnly == 0 and $numberOfMatches_all > 0 and ( $DigestedGenotypes_No_homo > 0 or $DigestedGenotypes_No_het > 0 ) ) # (Nieaktywna opcja 'Mine CAPS from polymorphic ...') Jeżeli genotyp którejkolwiek rośliny jest trawiony, to wynik jest zapisywany do pliku
-				{
-					$numberOfSNPs++;
-
-					my ($chrom,$snp) = split(":",$seqName); # Ekstrakcja z nazwy analizowanego markera/SNP'u nazwy sekwencji/chromosomu na którym jest zlokalizowany SNP ($chrom) oraz nr nukleotydu w obrębie tej sekwencji/chromosomu w którym jest zlokalizowany dany SNP lub od którego rozpoczyna się sekwencja indelu ($snp)
-					my $snp_min = $snp - 1; # Do zmiennej $snp_min zapisywana jest lokalizacja nukleotydu znajdującego się tuż przed SNP'em
-					$chrom =~ s/>//; # Usunięcie z nazwy sekwencji/chromosomu znaku zachęty '>'
-					my $taker_from = $snp - $seq_len; # Zapis do zmiennej $taker_from numeru nukleotydu od którego będzie rozpoczynała się ekstrachowana sekwencja
-					my $snp_plus = $snp + $IndvSeq_snpLen_snp[0]; # Do zmiennej $snp_plus zapisywana jest lokalizacja nukleotydu znajdującego się tuż za SNP'em. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
-					my $taker_to = $snp + $seq_len + $IndvSeq_snpLen_snp[0] - 1; # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
 					
-					if ( $taker_from < 0 or $taker_to > $chrom_offset->{$chrom}[3] )
-					{
-						push @markersOnTheEdge, $seqName;
-						$numberOfSNPs--;
-						next;
-					}
-					
-					open my $fh, '>>', "$working_dir" . "out.txt"; # Otwarcie do zapisu pliku wynikowego 'out.txt'
-						print $fh "$seqName\n";
-						my $enz_seq = ( split("\t",$enzymes_db{$selected_enz_names_tmp[$i]}) )[1];
-						my $tmp = $selected_enz_names_mix{$selected_enz_names_tmp[$i]};
-						print $fh "$tmp\t$enz_seq\n";
-						
-						
-						#my $taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1); # Zapis do zmiennej $taker_to numeru nukleotydu na którym będzie się kończyła ekstrachowana sekwencja. Zmienna $IndvSeq_snpLen_snp[0] zawiera informację o długości SNP'u referencji
-						
-#						print "\n";
-#						print "\$taker_to = $snp + $seq_len - ($IndvSeq_snpLen_snp[0] - 1) = $taker_to";
-#						exit;
-						
-						for (my $i = 0; $i < $SNP_alleles_No; $i++)
-						{
-							if ($i == 0)
-							{
-								print $fh "ref\t[$i]\t$IndvSeq_snp[$i]\t";
-							}
-							else
-							{
-								print $fh "alt\t[$i]\t$IndvSeq_snp[$i]\t";
-							}
-							
-							if ($matches1{$i} == 0)
-							{
-								print $fh "[-]\t";
-							}
-							else
-							{
-								print $fh "[+]\t";
-							}
-							
-							my @taker = seqExtractor($reference_file_name,"$chrom:$taker_from-$snp_min",$chrom_offset); # Ekstrakcja 'lewej' części sekwencji (jej ostatni nukleotyd znajduje się tuż przez SNP'em referencji)
-							$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
-							print $fh $taker[0] . $IndvSeq_snp[$i]; # Zapis do pliku 'out.txt' 'lewej' części sekwencji ($taker[0]) oraz sekwencji samego SNP'u ($IndvSeq_snp[0])
-							
-							@taker = seqExtractor($reference_file_name,"$chrom:$snp_plus-$taker_to",$chrom_offset); # Ekstrakcja 'prawej' części sekwencji (jej pierwszy nukleotyd znajduje się tuż za SNP'em referencji)
-							$taker[0] = lc $taker[0]; # Zamiana dużych liter wyekstrachowanej sekwencji na małe
-							print $fh "$taker[0]\n"; # Zapis do pliku 'out.txt' 'prawej' części sekwencji ($taker[0])
-						}
-						
-						#my @genotypes_uniq = uniq(@genotypes); # Do tablicy @genotypes_uniq zapisywane są wszystkie rodzaje genotypów występujące u badanych obiektów
-
-						foreach my $genotype_uniq ( sort{$b cmp $a} @genotypes_uniq ) # Dla każdego rodzaju genotypu ...
-						{
-							print $fh "$genotype_uniq\t"; # ... zapis do pliku wynikowego 'out.txt' nazwy genotypu, następnie ...
-							print $fh "["; # ... zapis do pliku wynikowego 'out.txt' nawiasu '['
-							
-							my $c = 0; # Zmienna określająca z który allel genotypu jest aktualnie analizowany (0 - allel pierwszy, 1 - allel drugi)
-							foreach my $indv_allele ( split("/", $genotype_uniq) ) # Dla każdego allelu wchodzącego w skład danego genotypu ...
-							{
-								if ($indv_allele eq "\.")
-								{
-									print $fh "?";
-								}
-								else
-								{
-									if ($matches1{$indv_allele} == 0) # ... jeżeli nie znajduje się w miejscu rozpoznawanym przez enzym, to ...
-									{
-										print $fh "-"; # ... zapisywany do pliku wynikowego 'out.txt' jest znak '-'
-									}
-									else
-									{
-										print $fh "+"; # A jeżeli dany allel znajduje się w miejscu rozpoznawanym przez enzym, to durkowany jest znak '+'
-									}
-								}
-								
-								if ($c == 0) # Jeżeli aktualnie analizowany jest pierwszy allel genotypu, to ...
-								{
-									print $fh "/"; # ... drukowany jest znak '/'
-								}
-								else
-								{
-									print $fh "]"; # ... a jeśli nie, to drukowany jest znak ']'
-									
-									foreach my $indv_name (sort{$a cmp $b} keys %genotypes) # Dla posortowanej nazwy każdego obiektu ...
-									{										
-										if ($genotypes{$indv_name} eq $genotype_uniq) # ... jeżeli genotyp odpowiadający obiektowi o danej nazwie jest identyczny z aktualnie tetsowanym genotypem, to ...
-										{
-											print $fh "\t$indv_name"; # ... do pliku wynikowego drukowana jest nazwa tego obiektu
-										}
-									}
-								}
-								
-								$c++; # Zwiększenie wartości zmiennej $c o 1 (sygnał, że w kolejnej rundzie będzie analizowany drugi allel)
-							}
-							print $fh "\n"; # Po przeanalizowaniu danego rodzaju genotypu drukowany jest znak nowej linii '\n'
-						}
-						print $fh "\n";
-					close $fh;
 				}
+				
 				
 				
 
@@ -3515,6 +5602,7 @@ sub caps_miner
 			}
 		}
 	}
+	close $fh;
 	return ($numberOfSNPs,1);
 
 }
@@ -3531,18 +5619,34 @@ sub singleCutSite
 	my @output = ();
 	$numberOfSNPsBefore = 0;
 	$numberOfSNPsAfter = 0;
+	$cfw_scf_output_file = $cfw_scf_input_file;
+	$cfw_scf_output_file =~ s/\.txt$/_scf\.txt/;
+	$cfw_scf_output_file =~ s/.*[\\\/]//g;
+	$cfw_scf_output_file = $working_dir . $cfw_scf_output_file;
+	if (-e $cfw_scf_output_file) { unlink $cfw_scf_output_file }
+	
 	$stop = 0;
 	
-	if (-e "$working_dir" . "out_single.txt") { unlink "$working_dir" . "out_single.txt" }
+	my $Ofh;
+	if ( !open $Ofh, '>>', $cfw_scf_output_file )
+	{
+		return($!, 3);
+	}
 	
-	open my $Ofh, '>>', "$working_dir" . "out_single.txt";
-	open my $fh, '<', "$working_dir" . "out.txt";
+		print $Ofh "#VCF2CAPS_output_file\n\n";
+	
+	my $fh;
+	if ( !open $fh, '<', $cfw_scf_input_file )
+	{
+		return($!, 4);
+	}
+	
 		while (my $bier = <$fh>)
 		{
 			if ($stop == 1) { return ("",2) }
 			
 			chomp $bier;
-			if ($bier =~ /^>/) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od znaku zachęty '>', to ...
+			if ($bier =~ /^>/) # Jeżeli linia w pliku wynikowym 'caps_markers.txt' rozpoczyna się od znaku zachęty '>', to ...
 			{
 				if ( scalar(keys %AllSeq) != 0 ) # Jeżeli hash %AllSeq zawiera jakiekolwiek dane ...
 				{
@@ -3575,7 +5679,7 @@ sub singleCutSite
 				push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
 				$numberOfSNPsBefore++; # ... wartość zmiennej $numberOfSNPsBefore zwiększana jest o 1
 			}
-			elsif ($bier =~ /^[A-Z]/ and scalar(split("\t", $bier)) == 2 ) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od dużej litery (linia z nazwami enzymów), to ...
+			elsif ($bier =~ /^[A-Z]/ and scalar(split("\t", $bier)) == 2 ) # Jeżeli linia w pliku wynikowym 'caps_markers.txt' rozpoczyna się od dużej litery (linia z nazwami enzymów), to ...
 			{
 				@input = split("\t",$bier); # Do dablicy @input zapisywane są poszczególne pola danej linii
 				$EnzSeq = $input[1];
@@ -3583,7 +5687,7 @@ sub singleCutSite
 				$EnzSeq =~ s/(^[nN]+)|([nN]+$)//g;
 				push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
 			}
-			elsif ($bier =~ /^[ra]/ and scalar(split("\t", $bier)) == 5) # Jeżeli linia w pliku wynikowym 'out.txt' rozpoczyna się od 'ref', to ...
+			elsif ($bier =~ /^[ra]/ and scalar(split("\t", $bier)) == 5) # Jeżeli linia w pliku wynikowym 'caps_markers.txt' rozpoczyna się od 'ref', to ...
 			{
 				push @output, $bier; # ... do tablicy @output zapisywana jest cała linia oraz ...
 				@input = split("\t",$bier); # Do dablicy @input zapisywane są poszczególne pola danej linii
@@ -3653,7 +5757,7 @@ sub singleCutSite
 	
 	
 	
-	## Fragment kodu odpowiedzialny za sprawdzenie, czy dany CAPS (z pliku 'out.txt') zawiera sekwencję z jakimkolwiek allelem SNP z co najwyżej 1 miejscem trawienia. Jeżeli prawda, to dany CAPS jest drukowany do pliku 'out_single.txt'
+	## Fragment kodu odpowiedzialny za sprawdzenie, czy dany CAPS (z pliku 'caps_markers.txt') zawiera sekwencję z jakimkolwiek allelem SNP z co najwyżej 1 miejscem trawienia. Jeżeli prawda, to dany CAPS jest drukowany do pliku 'out_single.txt'
 	my $check = 0;
 	foreach my $snp_allele_ID (keys %AllSeq) # Dla każdego allelu SNPu ...
 	{
@@ -3732,6 +5836,7 @@ sub seqExtractor
 	
 
 	open $fh, '<', $input or die "Cannot open the file $input\n";
+	
 		my $chrom_offset = $chrom_offset_->{$chrom}[0];
 		my $line_len = $chrom_offset_->{$chrom}[1];
 		my $last_line_len = $chrom_offset_->{$chrom}[2];
@@ -3770,7 +5875,6 @@ sub seqExtractor
 
 	close $fh;
 }
-
 
 sub regex_inv
 {
@@ -3821,4 +5925,27 @@ sub invert
 	else { $output = $input }
 	
 	return $output;
+}
+
+sub curr_time
+{
+	my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
+	my $formated_time = sprintf("%02d:%02d:%02d", $hour, $min, $sec);
+	$terminal->insert('end', "[" . $formated_time . "] ", 'date');
+}
+
+sub warning_dial
+{
+	my ($title, $message) = split(':::', $_[0]);
+	
+	if (defined $title and defined $message)
+	{
+		$mw->messageBox(
+			-title => $title,
+			-message => $message,
+			-type => 'OK',
+			-icon => 'error'
+		);
+	}
+	
 }
