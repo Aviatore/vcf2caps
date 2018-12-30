@@ -527,7 +527,7 @@ $cfw_gf_inputFile_analyze_button = $cfw_gf_inputFile_frame->Button(
 	}
 )->pack(-side => 'left');
 $cfw_gf_inputFile_check = $cfw_gf_inputFile_frame->Label(
-	-text => 'none',
+	-text => 'None',
 	-foreground => 'grey',
 )->pack(-side => 'left', -padx => 5);
 
@@ -629,6 +629,26 @@ $cfw_gf_start_button = $cfw_gf_input_frame->Button(
 	-text => 'Start filtration',
 	-state => 'disabled',
 	-command => sub {
+		my %group_number;
+		$group_number{1}{value} = $cfw_gf_group_1_maxError_value;
+		$group_number{1}{entry} = $cfw_gf_group_1_maxError_entry;
+		$group_number{2}{value} = $cfw_gf_group_2_maxError_value;
+		$group_number{2}{entry} = $cfw_gf_group_2_maxError_entry;
+		$group_number{3}{value} = $cfw_gf_group_3_maxError_value;
+		$group_number{3}{entry} = $cfw_gf_group_3_maxError_entry;
+		
+		foreach my $key ( keys (%group_number) )
+		{
+			if ( $group_number{$key}{value} !~ /^[0-9]+\.?[0-9]*$/ or $group_number{$key}{value} > 100 )
+			{
+				$group_number{$key}{entry}->configure(-background => 'red');
+			}
+			else
+			{
+				$group_number{$key}{entry}->configure(-background => 'white');
+			}
+		}
+	
 		if ( $cfw_gf_group_1_maxError_value !~ /^[0-9]+\.?[0-9]*$/ or $cfw_gf_group_2_maxError_value !~ /^[0-9]+\.?[0-9]*$/ or $cfw_gf_group_3_maxError_value !~ /^[0-9]+\.?[0-9]*$/ )
 		{
 			curr_time();
@@ -637,27 +657,15 @@ $cfw_gf_start_button = $cfw_gf_input_frame->Button(
 			$terminal->see('end');
 			$cfw_gf_error_label->configure(-text => "Something is wrong with the marked parameter value. The parameter must be numerical.", -foreground => 'red');
 			$cfw_gf_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
-			
-			my %group_number;
-			$group_number{1}{value} = $cfw_gf_group_1_maxError_value;
-			$group_number{1}{entry} = $cfw_gf_group_1_maxError_entry;
-			$group_number{2}{value} = $cfw_gf_group_2_maxError_value;
-			$group_number{2}{entry} = $cfw_gf_group_2_maxError_entry;
-			$group_number{3}{value} = $cfw_gf_group_3_maxError_value;
-			$group_number{3}{entry} = $cfw_gf_group_3_maxError_entry;
-			
-			foreach my $key ( keys (%group_number) )
-			{
-				if ( $group_number{$key}{value} !~ /^[0-9]+\.?[0-9]*$/ )
-				{
-					$group_number{$key}{entry}->configure(-background => 'red');
-				}
-				else
-				{
-					$group_number{$key}{entry}->configure(-background => 'white');
-				}
-			}			
-			return;
+		}
+		elsif ( $cfw_gf_group_1_maxError_value > 100 or $cfw_gf_group_2_maxError_value > 100 or $cfw_gf_group_3_maxError_value > 100 )
+		{
+			curr_time();
+			$terminal->insert('end', "Warning", 'warning');
+			$terminal->insert('end', " - the threshold value must be between 0 and 100.\n\n");
+			$terminal->see('end');
+			$cfw_gf_error_label->configure(-text => "The threshold value must be between 0 and 100.", -foreground => 'red');
+			$cfw_gf_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 		}
 		else
 		{
@@ -708,7 +716,7 @@ $cfw_scf_inputFile_analyze_button = $cfw_scf_inputFile_frame->Button(
 $cfw_scf_inputFile_check = $cfw_scf_inputFile_frame->Label(
 	-wraplength => 120,
 	-justify => 'left',
-	-text => 'none',
+	-text => 'None',
 	-foreground => 'grey',
 )->pack(-side => 'left', -padx => 5);
 
@@ -768,7 +776,7 @@ $cfw_c2f_inputFile_analyze_button = $cfw_c2f_inputFile_frame->Button(
 $cfw_c2f_inputFile_check = $cfw_c2f_inputFile_frame->Label(
 	-wraplength => 120,
 	-justify => 'left',
-	-text => 'none',
+	-text => 'None',
 	-foreground => 'grey',
 )->pack(-side => 'left', -padx => 5);
 
@@ -1701,7 +1709,7 @@ $L_upper_1_4_frame->Label(
 );
 
 $enzyme_check = $L_upper_2_4_frame->Label(
-	-text => 'none',
+	-text => 'None',
 	-foreground => 'grey',
 )->pack(
 	-side => 'left',
@@ -1715,7 +1723,7 @@ $enzyme_check_status = $L_upper_2_4_frame->Label(
 );
 
 $reference_check = $L_upper_3_4_frame->Label(
-	-text => 'none',
+	-text => 'None',
 	-foreground => 'grey'	
 )->pack(
 	-side => 'left',
@@ -1729,7 +1737,7 @@ $reference_check_status = $L_upper_3_4_frame->Label(
 );
 
 $raw_vcf_check = $L_upper_4_4_frame->Label(
-	-text => 'none',
+	-text => 'None',
 	-foreground => 'grey',
 )->pack(
 	-side => 'left',
@@ -1822,7 +1830,7 @@ MainLoop;
 # The subroutine to chose a new working directory #
 #-------------------------------------------------#
 sub new_working_directory
-{
+{	
 	my $working_dir_ref = $_[0];
 	my $new_working_dir = $mw->chooseDirectory(-initialdir => '.', -title => 'Choose a working directory');
 	if ($^O eq 'MSWin32')
@@ -1845,6 +1853,19 @@ sub new_working_directory
 		$terminal->see('end');
 		$$working_dir_ref = $new_working_dir . "/";
 	}
+	
+	$reference_entry->delete(0, 'end');
+	$reference_entry->insert(0, "");
+	$reference_entry->xview('end');
+	
+	$raw_vcf_entry->delete(0, 'end');
+	$raw_vcf_entry->insert(0, "");
+	$raw_vcf_entry->xview('end');
+	
+	$reference_check->configure(-image => '', -text => 'None');
+	$raw_vcf_check->configure(-image => '', -text => 'None');
+	
+	$L_lower_col1_mining_button->configure(-state => 'disabled');
 }
 
 #-------------------------------------------------------------#
@@ -3661,7 +3682,7 @@ sub fileDialog {
 		$file = $w->getOpenFile(-defaultextension => '.txt');
 		if (defined $file and $file ne "")
 		{
-			$enzyme_check->configure(-image => '', -text => 'none');
+			$enzyme_check->configure(-image => '', -text => 'None');
 			
 			$enzyme_entry->delete(0, 'end');
 			$enzyme_entry->insert(0, $file);
@@ -3673,8 +3694,8 @@ sub fileDialog {
 		$file = $w->getOpenFile(-filetypes => \@types_reference, -defaultextension => '.fa');
 		if (defined $file and $file ne "")
 		{
-			$reference_check->configure(-image => '', -text => 'none');
-			$raw_vcf_check->configure(-image => '', -text => 'none');
+			$reference_check->configure(-image => '', -text => 'None');
+			$raw_vcf_check->configure(-image => '', -text => 'None');
 			$vcf_analysis_results{err_code} = 0;
 			$L_lower_col1_mining_button->configure(-state => 'disabled');
 			
@@ -3690,7 +3711,7 @@ sub fileDialog {
 		$file = $w->getOpenFile(-filetypes => \@types_vcf, -defaultextension => '.vcf');
 		if (defined $file and $file ne "")
 		{
-			$raw_vcf_check->configure(-image => '', -text => 'none');
+			$raw_vcf_check->configure(-image => '', -text => 'None');
 			$L_lower_col1_mining_button->configure(-state => 'disabled');
 			
 			$raw_vcf_entry->delete(0, 'end');
@@ -3703,7 +3724,7 @@ sub fileDialog {
 		$file = $w->getOpenFile(-defaultextension => '.txt');
 		if (defined $file and $file ne "")
 		{
-			$cfw_gf_inputFile_check->configure(-image => '', -text => 'none', -foreground => 'grey');
+			$cfw_gf_inputFile_check->configure(-image => '', -text => 'None', -foreground => 'grey');
 			
 			$cfw_gf_inputFile_entry->delete(0, 'end');
 			$cfw_gf_inputFile_entry->insert(0, $file);
@@ -3717,7 +3738,7 @@ sub fileDialog {
 		$file = $w->getOpenFile(-defaultextension => '.txt');
 		if (defined $file and $file ne "")
 		{
-			$cfw_scf_inputFile_check->configure(-image => '', -text => 'none', -foreground => 'grey');
+			$cfw_scf_inputFile_check->configure(-image => '', -text => 'None', -foreground => 'grey');
 			
 			$cfw_scf_inputFile_entry->delete(0, 'end');
 			$cfw_scf_inputFile_entry->insert(0, $file);
@@ -3731,7 +3752,7 @@ sub fileDialog {
 		$file = $w->getOpenFile(-defaultextension => '.txt');
 		if (defined $file and $file ne "")
 		{
-			$cfw_c2f_inputFile_check->configure(-image => '', -text => 'none', -foreground => 'grey');
+			$cfw_c2f_inputFile_check->configure(-image => '', -text => 'None', -foreground => 'grey');
 			
 			$cfw_c2f_inputFile_entry->delete(0, 'end');
 			$cfw_c2f_inputFile_entry->insert(0, $file);
