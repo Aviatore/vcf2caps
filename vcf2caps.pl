@@ -3290,6 +3290,8 @@ sub start_caps_mining
 	my $repeat;
 	my $enzymes_for_analysis_No = keys %enzymes_for_analysis;
 	
+	$cfw_open_button->configure(-state => 'disabled');
+	
 	$repeat = $mw->repeat( 100 => sub {
 		$capsMining_percent = ( ($enzyme_zip) / $enzymes_for_analysis_No) * 100;
 		if ($enzyme_zip > 0 and $capsMining_percent < 100 and $caps_mining_results[1] == 0)
@@ -3311,6 +3313,7 @@ sub start_caps_mining
 		
 			$repeat->cancel;
 			$L_lower_col1_mining_button->configure(-state => 'normal');
+			$cfw_open_button->configure(-state => 'normal');
 			if ( $caps_mining_results[1] == 3 )
 			{
 				warning_dial("Cannot open the file ::: $caps_mining_results[0]");
@@ -3497,7 +3500,8 @@ sub start_caps_mining
 						$terminal->insert('end', "'.\n\n");
 					}
 										
-					$L_lower_col1_mining_button->configure(-state => 'normal');					
+					$L_lower_col1_mining_button->configure(-state => 'normal');
+					$cfw_open_button->configure(-state => 'normal');
 					
 					$repeat2->cancel;
 					
