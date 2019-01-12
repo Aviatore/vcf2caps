@@ -5003,8 +5003,7 @@ sub vcf2snps
 
 		for (my $i = 0; $i < $AltSnpNo; $i++)
 		{
-			my $AltSnp_plus = $input[1] + $AltSnpLen[$i];
-			$to = $input[1] + $genotypesLength + $AltSnpLen[$i] - 1;
+			$to = $input[1] + $genotypesLength + $AltSnpLen[$i] - 1 + ($RefSnpLen - $AltSnpLen[$i]);
 			
 			@seqExtractorOut = seqExtractor($reference_file_name,"$input[0]:$from-$snp_min",$chrom_offset);
 			
@@ -5012,7 +5011,7 @@ sub vcf2snps
 
 			print $Ofh "\t$AltSnp[$i],$AltSnpLen[$i],$extracted_sequence$AltSnp[$i]";
 			
-			@seqExtractorOut = seqExtractor($reference_file_name,"$input[0]:$AltSnp_plus-$to",$chrom_offset);
+			@seqExtractorOut = seqExtractor($reference_file_name,"$input[0]:$RefSnp_plus-$to",$chrom_offset);
 		
 			$extracted_sequence = $seqExtractorOut[0];
 
@@ -5628,7 +5627,7 @@ sub seqExtractor
 			$offset = $to_nucl - $from_nucl + (int($to_nucl / $line_len) - int($from_nucl / $line_len));
 			if (($from_nucl % $line_len) != 0) {$from_offset -= 1; $offset += 1}
 		}
-
+		
 		my $line = "";
 		seek($fh, $from_offset, 0);
 		read($fh, $line, $offset);
