@@ -430,6 +430,12 @@ j6nLBQAh+QQEMgAAACwCAAIAAwAMAAACBZSPqcsFACH5BAQyAAAALAgAAgADAAwAAAIFlI+pywUA
 IfkEBDIAAAAsDgACAAMADAAAAgWUj6nLBQAh+QQEMgAAACwUAAIAAwAMAAACBZSPqcsFADs=');
 
 
+my $caps2fasta = $mw->Toplevel(-title => 'CAPS to FASTA');
+$caps2fasta->withdraw;
+$caps2fasta->iconimage($logo);
+$caps2fasta->minsize(420,100);
+$caps2fasta->maxsize(420,100);
+$caps2fasta->protocol('WM_DELETE_WINDOW' => sub { $caps2fasta->withdraw } );
 
 #------------------------------------------#
 #    CAPS markers filtration - window      #
@@ -477,17 +483,6 @@ my $singleCut_filtration = $nb->add(
 	}
 );
 
-my $caps_to_fasta = $nb->add(
-	'c2f',
-	-label => 'CAPS to FASTA',
-	-anchor => 'nw',
-	-raisecmd => sub {
-		$Caps_Filtration_Window->minsize(420,150);
-		$Caps_Filtration_Window->maxsize(420,150);
-#		$Caps_Filtration_Window->maxsize(0,0);
-		$mw->update;
-	}
-);
 
 
 #-------------------------------------#
@@ -741,11 +736,11 @@ $cfw_scf_progress_textFrame->windowCreate('end', -window => $cfw_scf_progressBar
 my $cfw_scf_progress_label = $cfw_scf_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
 
 
-#-------------------------------#
-# NoteBook - CAPS to FASTA page #
-#-------------------------------#
+#--------------------#
+# CAPS to FASTA page #
+#--------------------#
 my $cfw_c2f_inputFile_check;
-my $cfw_c2f_inputFile_frame = $caps_to_fasta->Frame->pack(-side => 'top', -fill => 'x');
+my $cfw_c2f_inputFile_frame = $caps2fasta->Frame->pack(-side => 'top', -fill => 'x');
 $cfw_c2f_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
 $cfw_c2f_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
 my $cfw_c2f_inputFile_entry = $cfw_c2f_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_c2f_input_file)->pack(-side => 'left');
@@ -780,9 +775,9 @@ $cfw_c2f_inputFile_check = $cfw_c2f_inputFile_frame->Label(
 	-foreground => 'grey',
 )->pack(-side => 'left', -padx => 5);
 
-my $cfw_c2f_start_frame = $caps_to_fasta->Frame->pack(-side => 'top', -fill => 'x');
+my $caps2fasta_start_frame = $caps2fasta->Frame->pack(-side => 'top', -fill => 'x');
 
-$cfw_c2f_start_button = $cfw_c2f_start_frame->Button(
+$cfw_c2f_start_button = $caps2fasta->Button(
 	-text => 'Start convertion',
 	-state => 'disabled',
 	-command => sub {
@@ -791,15 +786,14 @@ $cfw_c2f_start_button = $cfw_c2f_start_frame->Button(
 	}
 	)->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 
-my $cfw_c2f_error_label = $cfw_c2f_start_frame->Label(-wraplength => 250, -justify => 'left');
-my $cfw_c2f_progress_frame = $cfw_c2f_start_frame->Frame;
+my $cfw_c2f_error_label = $caps2fasta->Label(-wraplength => 250, -justify => 'left');
+my $cfw_c2f_progress_frame = $caps2fasta->Frame;
 my $cfw_c2f_stop_button = $cfw_c2f_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');
 my $cfw_c2f_progress_textFrame = $cfw_c2f_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
 my $cfw_c2f_result_label = $cfw_c2f_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
 my $cfw_c2f_progressBar = $cfw_c2f_progress_textFrame->ProgressBar(-variable => \$cfw_c2f_convertion_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
 $cfw_c2f_progress_textFrame->windowCreate('end', -window => $cfw_c2f_progressBar);
 my $cfw_c2f_progress_label = $cfw_c2f_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
-
 
 #-----------------------------#
 # 'About' window constructors #
@@ -1760,6 +1754,7 @@ my $L_lower_container_frame = $L_lower_frame->Frame->pack(-side => 'top', -fill 
 my $L_lower_row0_frame = $L_lower_container_frame->Frame->pack(-side => 'top', -fill => 'x');
 my $L_lower_row1_frame = $L_lower_container_frame->Frame->pack(-side => 'top', -fill => 'x');
 my $L_lower_row3_frame = $L_lower_container_frame->Frame->pack(-side => 'top', -fill => 'x');
+my $L_lower_row4_frame = $L_lower_container_frame->Frame->pack(-side => 'top', -fill => 'x');
 
 $L_lower_col1_mining_button = $L_lower_row1_frame->Button(
 	-text => 'Start CAPS mining',
@@ -1813,6 +1808,16 @@ my $cfw_open_button = $L_lower_row3_frame->Button(
 	-command => sub {
 		$Caps_Filtration_Window->deiconify;
 		$Caps_Filtration_Window->raise;
+	}
+	)->pack(-side => 'left', -anchor => 'w');
+	
+my $caps2fasta_open_button = $L_lower_row4_frame->Button(
+	-text => 'CAPS to FASTA',
+	-width => 15,
+	-state => 'normal',
+	-command => sub {
+		$caps2fasta->deiconify;
+		$caps2fasta->raise;
 	}
 	)->pack(-side => 'left', -anchor => 'w');
 
