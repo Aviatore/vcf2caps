@@ -462,7 +462,7 @@ my $nb = $Caps_Filtration_Window->NoteBook(
 #-------------------------#
 my $genotype_filtration = $nb->add(
 	'gf',
-	-label => 'Filtration by genotype',
+	-label => 'Filtration by groups',
 	-anchor => 'nw',
 	-raisecmd => sub {
 		$Caps_Filtration_Window->minsize(700,591);
@@ -473,7 +473,7 @@ my $genotype_filtration = $nb->add(
 
 my $singleCut_filtration = $nb->add(
 	'scf',
-	-label => 'Filtration by cut-site',
+	-label => 'Filtration for single cut site',
 	-anchor => 'nw',
 	-raisecmd => sub {
 		$Caps_Filtration_Window->minsize(420,150);
@@ -2726,9 +2726,9 @@ sub start_caps_to_fasta_convertion
 }
 
 
-#----------------------------------------------------------------------------------------#
-# The subroutine triggers and checks the progress of CAPS markers filtration by genotype #
-#----------------------------------------------------------------------------------------#
+#--------------------------------------------------------------------------------------#
+# The subroutine triggers and checks the progress of CAPS markers filtration by groups #
+#--------------------------------------------------------------------------------------#
 sub start_caps_filtration
 {	
 	$cfw_gf_error_label->packForget;
@@ -2780,7 +2780,7 @@ sub start_caps_filtration
 	$cfw_gf_progress_frame->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 	
 	curr_time();
-	$terminal->insert('end', "Start CAPS markers filtration by genotype ...\n\n");
+	$terminal->insert('end', "Start CAPS markers filtration by groups ...\n\n");
 	$terminal->see('end');
 	
 	my $repeat;
@@ -2805,7 +2805,7 @@ sub start_caps_filtration
 					$cfw_gf_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 					
 					curr_time();
-					$terminal->insert('end', "CAPS markers filtration by genotype finished.");
+					$terminal->insert('end', "CAPS markers filtration by groups finished.");
 					$terminal->insert('end', " $caps_filtration_result[1]", 'mark');
 					$terminal->insert('end', " CAPS were saved to the file: '");
 					$terminal->insert('end', "$cfw_gf_output_file_tmp", 'mark');
@@ -2818,7 +2818,7 @@ sub start_caps_filtration
 					$cfw_gf_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 					
 					curr_time();
-					$terminal->insert('end', "CAPS markers filtration by genotype finished.\n");
+					$terminal->insert('end', "CAPS markers filtration by groups finished.\n");
 					$terminal->insert('end', "Warning",'warning');
 					$terminal->insert('end', " - no CAPS markers were found that meet the specified criteria.\n\n");
 					$terminal->see('end');
@@ -4687,9 +4687,9 @@ sub work
 }
 
 
-#-------------------------------------------------#
-# The subroutine performs filtration by genotype  #
-#-------------------------------------------------#
+#-----------------------------------------------#
+# The subroutine performs filtration by groups  #
+#-----------------------------------------------#
 sub check_genotypes_vs_filters
 {
 	(my $cfw_groups_thread, my $data_filtered) = @_;
