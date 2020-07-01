@@ -434,7 +434,6 @@ my $caps2fasta = $mw->Toplevel(-title => 'CAPS to FASTA');
 $caps2fasta->withdraw;
 $caps2fasta->iconimage($logo);
 $caps2fasta->minsize(420,100);
-$caps2fasta->maxsize(420,100);
 $caps2fasta->protocol('WM_DELETE_WINDOW' => sub { $caps2fasta->withdraw } );
 
 #------------------------------------------#
@@ -466,7 +465,6 @@ my $genotype_filtration = $nb->add(
 	-anchor => 'nw',
 	-raisecmd => sub {
 		$Caps_Filtration_Window->minsize(700,591);
-		$Caps_Filtration_Window->maxsize(0,0);
 		$mw->update;
 	}
 );
@@ -476,9 +474,11 @@ my $singleCut_filtration = $nb->add(
 	-label => 'Filtration for single cut site',
 	-anchor => 'nw',
 	-raisecmd => sub {
-		$Caps_Filtration_Window->minsize(420,150);
+		my @default = $Caps_Filtration_Window->maxsize();
 		$Caps_Filtration_Window->maxsize(420,150);
-#		$Caps_Filtration_Window->maxsize(0,0);
+		$Caps_Filtration_Window->minsize(420,150);
+		$mw->update;
+		$Caps_Filtration_Window->maxsize(@default);
 		$mw->update;
 	}
 );
