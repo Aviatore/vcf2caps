@@ -126,8 +126,8 @@ my @sequencesNotPresentInRef:shared = ();
 my @singleCutSite_results:shared;
 
 
-print 'VCF2CAPS v2.0 - the software for CAPS markers identification 
-from Variant Call Format (VCF) file.
+print 'VCF2CAPS v2.0 - the software for CAPS marker identification 
+from Variant Call Format (VCF) files.
 Copyright 2018 Wojciech Wesolowski
 
 This program is free software: you can redistribute it and/or modify
@@ -144,19 +144,18 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 This window is required for VCF2CAPS to run properly.
-You can minimise it but please do not close it.
+You can minimize it but please do not close.
 
 ';
 
 #------------------------------------------------------------------------------#
-# Detaching the subroutine 'work', that will process all analysis.             #
 # The 'work' subroutine runs in the background as a loop, checking the value   #
 # of the $jobID variable that determines which analysis should be performed.   #
 # Thanks to assigning computational demanding processes to the new subroutine  #
 # running in a new thread, the main window does not freeze and other tasks     #
-# can be performed in the meantime. Perl Tk module is not thread safe and any  #
-# attempt to create a new thread within Tk raise an error. The below (probably #
-# odd) solution was my answer to that problem.                                 #
+# can be performed in the meantime. The Perl/Tk module is not thread-safe and  #
+# any attempt to create a new thread within Tk raises an error. The below      #
+# (probably odd) solution is my answer to that problem.                        #
 #------------------------------------------------------------------------------#
 threads->create( \&work )->detach();
 
@@ -528,7 +527,7 @@ $cfw_gf_inputFile_check = $cfw_gf_inputFile_frame->Label(
 
 
 $cfw_gf_title_frame->Label(
-	-text => 'To filter CAPS markers that differentiates specific individuals, paste into the following text fields space-, tab- or comma-separated names of individuals.
+	-text => 'To filter CAPS markers that differentiate specific individual samples, paste into the following text fields space-, tab- or comma-separated names of individuals/samples.
 
 Below you can choose the way how CAPS markers will be selected:',
 	-wraplength => 600,
@@ -558,7 +557,7 @@ my $cfw_gf_group_1_maxError_entry = $cfw_gf_group1_properties_frame->Entry(
 	-state => 'normal',
 	-textvariable => \$cfw_gf_group_1_maxError_value
 	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
-$cfw_gf_group1_properties_frame->Label(-text => '%  Max mismatches')->pack(-pady => 5);;
+$cfw_gf_group1_properties_frame->Label(-text => 'Max % of mismatches')->pack(-pady => 5);;
 $cfw_gf_group_1_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_1_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
 
 my $cfw_gf_group_2_labelFrame = $cfw_gf_input_frame->Labelframe(-text => 'Group 2')->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5);
@@ -778,7 +777,7 @@ $cfw_c2f_inputFile_check = $cfw_c2f_inputFile_frame->Label(
 my $caps2fasta_start_frame = $caps2fasta->Frame->pack(-side => 'top', -fill => 'x');
 
 $cfw_c2f_start_button = $caps2fasta->Button(
-	-text => 'Start convertion',
+	-text => 'Start conversion',
 	-state => 'disabled',
 	-command => sub {
 		$cfw_c2f_start_button->configure(-state => 'disabled');
@@ -1747,7 +1746,7 @@ $raw_vcf_check_status = $L_upper_4_4_frame->Label(
 
 my $L_center_col1_frame = $L_center_frame->Frame->pack(-side => 'left', -fill => 'x', -pady => 10, -padx => 5);
 my $L_center_col2_frame = $L_center_frame->Frame->pack(-side => 'left', -fill => 'x');
-my $L_center_col1_2_label = $L_center_col1_frame->Label(-anchor => 'w', -text => "DNA sequence length flanking the variant in the output file:")->pack(-side => 'top', -fill => 'x');
+my $L_center_col1_2_label = $L_center_col1_frame->Label(-anchor => 'w', -text => "Length of DNA sequence flanking the variant (polymorphism) in the output file:")->pack(-side => 'top', -fill => 'x');
 $L_center_col2_2_entry = $L_center_col2_frame->Entry(-insertwidth => 1, -width => 5, -textvariable => \$output_seq_len, -justify => 'right')->pack(-side => 'left', -padx => 0);
 $L_center_col2_frame->Label(-text => 'bp')->pack(-side => 'top', -padx => 0);
 my $L_lower_container_frame = $L_lower_frame->Frame->pack(-side => 'top', -fill => 'x');
@@ -3371,7 +3370,7 @@ sub start_caps_mining
 					{
 						$caps_mining_progress_frame->packForget;
 
-						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS found");
+						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS markers found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
 						
 						curr_time();						
@@ -3386,7 +3385,7 @@ sub start_caps_mining
 					{
 						$caps_mining_progress_frame->packForget;
 
-						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS found");
+						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS markers found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
 												
 						curr_time();
@@ -3435,7 +3434,7 @@ sub start_caps_mining
 					{
 						$caps_mining_progress_frame->packForget;
 
-						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS found");
+						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS markers found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
 						
 						curr_time();
@@ -3451,7 +3450,7 @@ sub start_caps_mining
 					{
 						$caps_mining_progress_frame->packForget;
 
-						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS found");
+						$caps_mining_result_label->configure(-text => "$caps_mining_results[0] CAPS markers found");
 						$caps_mining_result_label->pack(-side => 'left', -anchor => 'w');
 						
 						curr_time();
@@ -3586,7 +3585,7 @@ sub start_singleCut_filter
 
 				$cfw_scf_progress_frame->packForget;
 				$numberOfSNPsAfter =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1 /g;
-				$cfw_scf_error_label->configure(-text => "$numberOfSNPsAfter CAPS with single-cut site were saved to the file: '$cfw_scf_output_file_tmp'");
+				$cfw_scf_error_label->configure(-text => "$numberOfSNPsAfter CAPS markers with a single-cut site were saved to the file: '$cfw_scf_output_file_tmp'");
 				$cfw_scf_error_label->pack(-side => 'left', -anchor => 'w');
 				
 				curr_time();
@@ -3601,7 +3600,7 @@ sub start_singleCut_filter
 			{
 				$cfw_scf_progress_frame->packForget;
 				$numberOfSNPsAfter =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1 /g;
-				$cfw_scf_error_label->configure(-text => "$numberOfSNPsAfter CAPS with single-cut site were saved to the file: '$cfw_scf_output_file_tmp'");
+				$cfw_scf_error_label->configure(-text => "$numberOfSNPsAfter CAPS markers with a single-cut site were saved to the file: '$cfw_scf_output_file_tmp'");
 				$cfw_scf_error_label->pack(-side => 'left', -anchor => 'w');
 				
 				curr_time();
