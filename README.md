@@ -61,4 +61,4 @@ I will try to solve all the problems you encountered using VCF2CAPS software.
 
 ### License
 
-This software is licensed under the GNU General Public License v3.0. See LICENSE.txt for more information.
+This software is licensed under the GNU General Public License v3.0. See LICENSE for more information.
