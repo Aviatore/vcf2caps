@@ -1,6 +1,6 @@
 # VCF2CAPS
 
-VCF2CAPS is a VCF file analysis tool for CAPS marker development. The software facilitates the conversion of a large number of single nucleotide polymorphisms (SNPs), multiple nucleotide polymorphisms (MNPs) and insertion/deletion (InDel) polymorphisms detected by SNP calling tools, e.g. SAMtools, Platypus or FreeBayes, into CAPS markers.
+VCF2CAPS is a VCF file analysis tool for CAPS marker development. The software facilitates the conversion of a large number of single nucleotide polymorphisms (SNPs), multiple nucleotide polymorphisms (MNPs) and insertion/deletion (indel) polymorphisms detected by SNP calling tools, e.g. SAMtools, Platypus or FreeBayes, into CAPS markers.
 
 ## Getting started
 
@@ -45,8 +45,9 @@ perl vcf2caps.pl
 ### Run analysis on test data
 
 To check if the software runs properly, perform analysis on the test data. They are available in the 'test' directory and contains the following files:
-- test.vcf – contains the fragment of VCF file with identified SNPs/InDels from chromosome 1 of sugar beet;
-- enzymes – contains enzyme database in GCG format.
+- test.vcf – contains the fragment of VCF file with identified SNPs/indels from chromosome 1 of sugar beet;
+- enzymes.txt – contains enzyme database in GCG format.
+
 The reference sequence of sugar beet chromosome 1 you can get from the NCBI database: 
 [https://www.ncbi.nlm.nih.gov/nuccore/CM002321.2](https://www.ncbi.nlm.nih.gov/nuccore/CM002321.2)
 
