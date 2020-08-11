@@ -823,7 +823,7 @@ $about_text->insert('end'," ", 'text_center');
 $about_text->insert('end', "https://github.com/Aviatore/VCF2CAPS.git", 'hyperlink');
 $about_text->insert('end',"\n\nUniversity of Agriculture in Krakow, Poland\n\n", 'text_center');
 $about_text->insert('end',"Programmed by Wojciech Wesołowski\n", 'text_center');
-$about_text->insert('end', "w.wesolowski\@protonmail.com\n\n", 'text_center');
+$about_text->insert('end', "w.wesolowski\@urk.edu.pl\n\n", 'text_center');
 $about_text->insert('end'," ", 'text_center');
 
 my $button_OK = $about_text->Button(-text => 'OK', -width => 10, -command => sub { $about_window->withdraw } );

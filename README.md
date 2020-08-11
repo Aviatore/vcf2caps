@@ -54,7 +54,7 @@ After downloading the reference file, please confirm that the sequence name cont
 
 ### Getting help
 
-Any issues/problems/comments can be posted on Github issues or you can contact me directly through the following email address: w.wesolowski at protonmail dot com.
+Any issues/problems/comments can be posted on Github issues or you can contact me directly through the following email address: *w.wesolowski[at]urk[dot]edu[dot]pl*
 
 I will try to solve all the problems you encountered using VCF2CAPS software.
 
