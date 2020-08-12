@@ -5,7 +5,7 @@ VCF2CAPS is a VCF file analysis tool for CAPS marker development. The software f
 ## Getting started
 
 The software is provided as a Perl script 'vcf2caps.pl' which needs Perl environment to be installed to run properly. However, if you are working on Windows OS you do not need to install anything. Simply run the executable file VCF2CAPS.exe.
-The detailed description of how to use this software is available in the [manual](https://pliki.urk.edu.pl/index.php/s/EgBzQitze5VEtpn) file.
+The detailed description on how to use this software is available in the [manual](https://pliki.urk.edu.pl/index.php/s/EgBzQitze5VEtpn) file.
 
 ### Prerequisites
 
@@ -44,9 +44,9 @@ perl vcf2caps.pl
 
 ### Run analysis on test data
 
-To check if the software runs properly, perform analysis on the test data. They are available in the 'test' directory and contains the following files:
+To check if the software runs properly, perform analysis on the test data. They are available in the **test** directory and contain the following files:
 - test.vcf – contains the fragment of VCF file with identified SNPs/indels from chromosome 1 of sugar beet;
-- enzymes.txt – contains enzyme database in GCG format.
+- enzymes.txt – contains the enzyme database in GCG format.
 
 The reference sequence of sugar beet chromosome 1 you can get from the NCBI database: 
 [https://www.ncbi.nlm.nih.gov/nuccore/CM002321.2](https://www.ncbi.nlm.nih.gov/nuccore/CM002321.2)
@@ -57,7 +57,7 @@ After downloading the reference file, please confirm that the sequence name cont
 
 Any issues/problems/comments can be posted on Github issues or you can contact me directly through the following email address: *w.wesolowski[at]urk[dot]edu[dot]pl*
 
-I will try to solve all the problems you encountered using VCF2CAPS software.
+I will try to solve all problems you encountered using VCF2CAPS software.
 
 ### License
 
