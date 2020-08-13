@@ -4,8 +4,7 @@ VCF2CAPS is a VCF file analysis tool for CAPS marker development. The software f
 
 ## Getting started
 
-The software is provided as a Perl script 'vcf2caps.pl' which needs Perl environment to be installed to run properly. However, if you are working on Windows OS you do not need to install anything. Simply run the executable file VCF2CAPS.exe.
-The detailed description on how to use this software is available in the [manual](https://pliki.urk.edu.pl/index.php/s/EgBzQitze5VEtpn) file.
+The software is provided as a Perl script 'vcf2caps.pl' which needs Perl environment to be installed to run properly. However, if you are working on Windows OS you do not need to install anything. Simply run the executable file [VCF2CAPS.exe](https://pliki.urk.edu.pl/index.php/s/Ys9oIvic5JcXM2V). The detailed description on how to use this software is available in the [manual](https://pliki.urk.edu.pl/index.php/s/EgBzQitze5VEtpn) file.
 
 ### Prerequisites
 
