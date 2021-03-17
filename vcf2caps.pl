@@ -470,7 +470,7 @@ my $genotype_filtration = $nb->add(
 
 my $singleCut_filtration = $nb->add(
 	'scf',
-	-label => 'Filtration for single cut site',
+	-label => 'Filtration for a single cut site',
 	-anchor => 'nw',
 	-raisecmd => sub {
 		my @default = $Caps_Filtration_Window->maxsize();
