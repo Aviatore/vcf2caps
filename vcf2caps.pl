@@ -2645,7 +2645,7 @@ sub start_caps_to_fasta_convertion
 	$cfw_c2f_progress_frame->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 	
 	curr_time();
-	$terminal->insert('end', "Start convertion of vcf2caps output file into FASTA format ...\n\n");
+	$terminal->insert('end', "Start conversion of vcf2caps output file into FASTA format ...\n\n");
 	$terminal->see('end');
 	
 	$jobID = 12;
@@ -2671,7 +2671,7 @@ sub start_caps_to_fasta_convertion
 				$cfw_c2f_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 				
 				curr_time();
-				$terminal->insert('end', "Finished convertion of VCF2CAPS output file into FASTA format.");
+				$terminal->insert('end', "Finished conversion of VCF2CAPS output file into FASTA format.");
 				$terminal->insert('end', " $caps_to_fasta_result[1]", 'mark');
 				$terminal->insert('end', " sequences were saved to the file: '");
 				$terminal->insert('end', "$cfw_c2f_output_file_tmp", 'mark');
@@ -2871,7 +2871,7 @@ sub start_caps_filtration
 
 
 #----------------------------------------------------------------------------------------#
-# The subroutine triggers and checks the progress of the VCF to v2c file convertion step #
+# The subroutine triggers and checks the progress of the VCF to v2c file conversion step #
 #----------------------------------------------------------------------------------------#
 sub raw_start_vcf_check
 {
@@ -3066,7 +3066,7 @@ sub raw_start_vcf_check
 										
 										$terminal->insert('end', "\n\n");
 										curr_time();
-										$terminal->insert('end', "Convertion completed sucessfully.\n\n");
+										$terminal->insert('end', "Conversion completed sucessfully.\n\n");
 										$terminal->see('end');
 										
 										if ($reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
@@ -3087,11 +3087,11 @@ sub raw_start_vcf_check
 										$terminal->insert('end', "Warning",'warning');
 										if ( $sequencesNotPresentInRef_No > 0 and $markersOnTheEdge_No > 0)
 										{
-											$terminal->insert('end', " - convertion completed. However, some problems occurred:\n");
+											$terminal->insert('end', " - conversion completed. However, some problems occurred:\n");
 										}
 										else
 										{
-											$terminal->insert('end', " - convertion completed. However, a problem occurred:\n");
+											$terminal->insert('end', " - conversion completed. However, a problem occurred:\n");
 										}
 										
 										if ( $sequencesNotPresentInRef_No > 0 )
@@ -3111,7 +3111,7 @@ sub raw_start_vcf_check
 											}
 											else
 											{
-												LOG("\n# Convertion of VCF file into v2c format");
+												LOG("\n# Conversion of VCF file into v2c format");
 												LOG("# The following polymorphisms are located in sequences which are not present in the reference file $reference_file_name_tmp");
 												foreach my $text (@sequencesNotPresentInRef)
 												{
@@ -3144,7 +3144,7 @@ sub raw_start_vcf_check
 											}
 											else
 											{
-												LOG("\n# Convertion of VCF file into v2c format");
+												LOG("\n# Conversion of VCF file into v2c format");
 												LOG("# The following polymorphisms are less than $snps_seq_len bp from one end of their source sequences:");
 
 												foreach my $text (@markersOnTheEdge)
@@ -3222,7 +3222,7 @@ sub raw_start_vcf_check
 										$terminal->insert('end', "\n\n");
 										curr_time();
 										$terminal->insert('end', "Warning",'warning');
-										$terminal->insert('end', " - convertion failed. Something went seriously wrong. \n");
+										$terminal->insert('end', " - conversion failed. Something went seriously wrong. \n");
 										$terminal->insert('end', "Please, check whether you have choosen the right reference file.\n\n");
 										$terminal->see('end');
 										
