@@ -3815,6 +3815,7 @@ sub work
 					}
 					
 						print $Ofh "#$reference_md5\n";
+						my $index_error = 0;
 						
 						L: while (<$fh>)
 						{
@@ -3863,6 +3864,7 @@ sub work
 												unlink $working_dir . $reference_file_name_tmp . ".index";
 												
 												@genome_error = (2,"$chrom_ID,$.");
+												$index_error = 1;
 												last L;
 											}
 											$alert = 1;
@@ -3875,6 +3877,7 @@ sub work
 												unlink $working_dir . $reference_file_name_tmp . ".index";
 												
 												@genome_error = (2,"$chrom_ID,$.");
+												$index_error = 1;
 												last L;
 											}
 										}
@@ -3884,7 +3887,7 @@ sub work
 								}
 							}
 						}
-						if ($chrom_len != 0) {print $Ofh "$last_line_len\t$chrom_len\n"; $chrom_len = 0}
+						if ($chrom_len != 0 and $index_error == 0) {print $Ofh "$last_line_len\t$chrom_len\n"; $chrom_len = 0}
 
 					close $fh;
 					close $Ofh;
