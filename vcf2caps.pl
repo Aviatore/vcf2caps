@@ -2561,14 +2561,15 @@ sub start_reference_check
 							{
 								$reference_check->configure(-image => $fail_image);
 								my @err_data = split(",", $reference_analysis_results[1]);
+								$err_data[1]--;
 								curr_time();
 								$terminal->insert('end', "Warning", 'warning');
-								$terminal->insert('end', " - the refernce file '");
+								$terminal->insert('end', " - the reference file '");
 								$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-								$terminal->insert('end', "' has different line length in '");
-								$terminal->insert('end', "$err_data[0]", 'mark');
-								$terminal->insert('end', "' at line ");
+								$terminal->insert('end', "' has different line length in line '");
 								$terminal->insert('end', "$err_data[1]", 'mark');
+								$terminal->insert('end', "' of ");
+								$terminal->insert('end', "$err_data[0]", 'mark');
 								$terminal->insert('end', ".\n\n");
 								$terminal->see('end');
 							}
