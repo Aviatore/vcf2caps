@@ -39,7 +39,7 @@ $|++;
 my $actualSNPNo:shared = 0;
 my $caps_filtered:shared = 0;
 my $capsMining_percent;
-my $cfw_c2f_convertion_percent;
+my $cfw_c2f_conversion_percent;
 my $cfw_c2f_input_file:shared = "";
 my $cfw_c2f_output_file:shared = "";
 my $cfw_gf_CAPS_filtering_percent;
@@ -781,7 +781,7 @@ $cfw_c2f_start_button = $caps2fasta->Button(
 	-state => 'disabled',
 	-command => sub {
 		$cfw_c2f_start_button->configure(-state => 'disabled');
-		start_caps_to_fasta_convertion();
+		start_caps_to_fasta_conversion();
 	}
 	)->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 
@@ -790,7 +790,7 @@ my $cfw_c2f_progress_frame = $caps2fasta->Frame;
 my $cfw_c2f_stop_button = $cfw_c2f_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');
 my $cfw_c2f_progress_textFrame = $cfw_c2f_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
 my $cfw_c2f_result_label = $cfw_c2f_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
-my $cfw_c2f_progressBar = $cfw_c2f_progress_textFrame->ProgressBar(-variable => \$cfw_c2f_convertion_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
+my $cfw_c2f_progressBar = $cfw_c2f_progress_textFrame->ProgressBar(-variable => \$cfw_c2f_conversion_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
 $cfw_c2f_progress_textFrame->windowCreate('end', -window => $cfw_c2f_progressBar);
 my $cfw_c2f_progress_label = $cfw_c2f_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
 
@@ -2633,15 +2633,15 @@ sub start_reference_check
 #-------------------------------------------------------------------------------------------------#
 # The subroutine triggers and checks the progress of the VCF2CAPS output file to FASTA conversion #
 #-------------------------------------------------------------------------------------------------#
-sub start_caps_to_fasta_convertion
+sub start_caps_to_fasta_conversion
 {
 	$cfw_c2f_error_label->packForget;
-	$cfw_c2f_convertion_percent = 0;
+	$cfw_c2f_conversion_percent = 0;
 	@caps_to_fasta_result = (0, 0);
 	$caps_filtered = 0;
 	
-	$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
-	$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+	$cfw_c2f_conversion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+	$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_conversion_percent) );
 	$cfw_c2f_progress_frame->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 	
 	curr_time();
@@ -2652,7 +2652,7 @@ sub start_caps_to_fasta_convertion
 	
 	my $repeat;
 	$repeat = $mw->repeat( 100 => sub {
-		$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+		$cfw_c2f_conversion_percent = ( $caps_filtered / $total_caps_number ) * 100;
 		
 		if ( $caps_to_fasta_result[0] != 0 )
 		{	
@@ -2662,8 +2662,8 @@ sub start_caps_to_fasta_convertion
 				
 			if ( $caps_to_fasta_result[0] == 1 )
 			{
-				$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
-				$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+				$cfw_c2f_conversion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+				$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_conversion_percent) );
 				
 				
 				
@@ -2719,8 +2719,8 @@ sub start_caps_to_fasta_convertion
 		}		
 		elsif ( $caps_filtered > 0 and $total_caps_number > 0 )
 		{
-			$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
-			$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+			$cfw_c2f_conversion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+			$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_conversion_percent) );
 		}
 	} );
 }
