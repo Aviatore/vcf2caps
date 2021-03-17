@@ -3223,7 +3223,7 @@ sub raw_start_vcf_check
 										curr_time();
 										$terminal->insert('end', "Warning",'warning');
 										$terminal->insert('end', " - conversion failed. Something went seriously wrong. \n");
-										$terminal->insert('end', "Please, check whether you have choosen the right reference file.\n\n");
+										$terminal->insert('end', "Please, check if you have chosen the right reference file.\n\n");
 										$terminal->see('end');
 										
 										unlink($working_dir . $v2c_file_name_tmp) if ( -e $working_dir . $v2c_file_name_tmp );
