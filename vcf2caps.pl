@@ -3098,7 +3098,7 @@ sub raw_start_vcf_check
 										{
 											if ( $sequencesNotPresentInRef_No <= 5 )
 											{
-												$terminal->insert('end', "The SNPs/InDels listed below were located in the sequences not present in the reference file '");
+												$terminal->insert('end', "The following polymorphisms are located in sequences which are not present in the reference file '");
 												$terminal->insert('end', "$reference_file_name_tmp", 'mark');
 												$terminal->insert('end', "':\n");
 													
@@ -3112,15 +3112,15 @@ sub raw_start_vcf_check
 											else
 											{
 												LOG("\n# Convertion of VCF file into v2c format");
-												LOG("# SNPs/InDels located in the sequences not present in the reference file $reference_file_name_tmp");
+												LOG("# The following polymorphisms are located in sequences which are not present in the reference file $reference_file_name_tmp");
 												foreach my $text (@sequencesNotPresentInRef)
 												{
 													LOG($text);
 												}
 												$terminal->insert('end', "$sequencesNotPresentInRef_No_forReport", 'mark');
-												$terminal->insert('end', " SNPs/InDels were located in the sequences not present in the reference file '");
+												$terminal->insert('end', " polymorphisms were located in sequences which are not present in the reference file '");
 												$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-												$terminal->insert('end', "'. The list of those SNPs/InDels were saved in the ");
+												$terminal->insert('end', "'. The list of those polymorphisms were saved in the ");
 												$terminal->insert('end', "log.txt", 'mark');
 												$terminal->insert('end', " file.\n");
 												$terminal->see('end');
@@ -3131,9 +3131,9 @@ sub raw_start_vcf_check
 										{															
 											if ( $markersOnTheEdge_No <= 5 )
 											{
-												$terminal->insert('end', "The SNPs/InDels listed below were located closer to the edges of the sequences than ");
+												$terminal->insert('end', "The following polymorphisms are less than ");
 												$terminal->insert('end', "$snps_seq_len", 'mark');
-												$terminal->insert('end', " bp:\n");
+												$terminal->insert('end', " bp from one end of their source sequences:\n");
 												
 												foreach my $markerOnTheEdge (@markersOnTheEdge)
 												{
@@ -3145,16 +3145,18 @@ sub raw_start_vcf_check
 											else
 											{
 												LOG("\n# Convertion of VCF file into v2c format");
-												LOG("# SNPs/InDels located closer to the edges of the sequences than 40 bp");
+												LOG("# The following polymorphisms are less than $snps_seq_len bp from one end of their source sequences:");
+
 												foreach my $text (@markersOnTheEdge)
 												{
 													LOG($text);
 												}
+
 												$terminal->insert('end', "$markersOnTheEdge_No_forReport", 'mark');
-												$terminal->insert('end', " SNPs/InDels were located closer to the edges of the sequences than ");
+												$terminal->insert('end', " polymorphisms are less than ");
 												$terminal->insert('end', "$snps_seq_len", 'mark');
-												$terminal->insert('end', " bp:\n");
-												$terminal->insert('end', "The list of those SNPs/InDels were saved in the ");
+												$terminal->insert('end', " bp from one end of their source sequences:\n");
+												$terminal->insert('end', "The list of those polymorphisms were saved in the ");
 												$terminal->insert('end', "log.txt", 'mark');
 												$terminal->insert('end', " file.\n");
 												$terminal->see('end');
