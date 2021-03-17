@@ -3222,7 +3222,7 @@ sub raw_start_vcf_check
 										$terminal->insert('end', "\n\n");
 										curr_time();
 										$terminal->insert('end', "Warning",'warning');
-										$terminal->insert('end', " - convertion failed. Something went horribly wrong. \n");
+										$terminal->insert('end', " - convertion failed. Something went seriously wrong. \n");
 										$terminal->insert('end', "Please, check whether you have choosen the right reference file.\n\n");
 										$terminal->see('end');
 										
@@ -3266,9 +3266,9 @@ sub raw_start_vcf_check
 							$terminal->insert('end', "Warning", 'warning');
 							$terminal->insert('end', " - the file '");
 							$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
-							$terminal->insert('end', "' does not have the header '");
+							$terminal->insert('end', "' does not have the '");
 							$terminal->insert('end', "#CHROM",'mark');
-							$terminal->insert('end', "'. Is it really VCF file?\n\n");
+							$terminal->insert('end', "' line in the header. Is it really a VCF file?\n\n");
 							$terminal->see('end');
 						}
 						elsif ($vcf_analysis_results{err_code} == 6)
