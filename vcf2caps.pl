@@ -493,7 +493,7 @@ my $cfw_gf_title_frame = $genotype_filtration->Frame->pack(-side => 'top', -fill
 my $cfw_gf_options_frame = $genotype_filtration->Frame->pack(-side => 'top', -fill => 'x');
 my $cfw_gf_input_frame = $genotype_filtration->Frame->pack(-expand => 1, -side => 'top', -fill => 'both');
 
-$cfw_gf_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_gf_inputFile_frame->Label(-text => 'Please, select a VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
 $cfw_gf_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
 my $cfw_gf_inputFile_entry = $cfw_gf_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_gf_input_file)->pack(-side => 'left');
 my $cfw_gf_inputFile_chooseFile_button = $cfw_gf_inputFile_frame->Button(
@@ -527,21 +527,23 @@ $cfw_gf_inputFile_check = $cfw_gf_inputFile_frame->Label(
 
 
 $cfw_gf_title_frame->Label(
-	-text => 'To filter CAPS markers that differentiate specific individual samples, paste into the following text fields space-, tab- or comma-separated names of individuals/samples.
+	-text => 'To filter CAPS markers that differentiate specific individuals samples, paste into the following text fields space-, tab- or comma-separated symbols of individuals/samples.
 
 Below you can choose the way how CAPS markers will be selected:',
 	-wraplength => 600,
 	-justify => 'left'
 	)->pack(-side => 'left', -padx => 5, -pady => 5);
 
-my $cfw_gf_option_1 = $cfw_gf_options_frame->Radiobutton(
-	-text => 'Only one group corresponds to the specific marker\'s genotype',
-	-value => 1,
+my $cfw_gf_option_2 = $cfw_gf_options_frame->Radiobutton(
+	#-text => 'Each group corresponds to the specific marker\'s genotype',
+	-text => "Mode A: CAPS markers with each genotype \nrepresented by one group of individuals/samples",
+	-value => 0,
 	-variable => \$oneFiltGroup_twoGenotypes
 	)->pack(-side => 'left', -padx => 5, -pady => 5);
-my $cfw_gf_option_2 = $cfw_gf_options_frame->Radiobutton(
-	-text => 'Each group corresponds to the specific marker\'s genotype',
-	-value => 0,
+my $cfw_gf_option_1 = $cfw_gf_options_frame->Radiobutton(
+	#-text => 'Only one group corresponds to the specific marker\'s genotype',
+	-text => "Mode B: CAPS markers with one genotype \nrepresented by one group of individuals/samples",
+	-value => 1,
 	-variable => \$oneFiltGroup_twoGenotypes
 	)->pack(-side => 'left', -padx => 5, -pady => 5);
 $cfw_gf_option_1->select();
@@ -550,6 +552,7 @@ my $cfw_gf_group_1_labelFrame = $cfw_gf_input_frame->Labelframe(-text => 'Group 
 my $cfw_gf_group_1_text = $cfw_gf_group_1_labelFrame->Scrolled('Text', -scrollbars => 'e', -insertwidth => 1, -wrap => 'word', -foreground => 'black' , -background => 'white', -relief => 'groove', -pady => 5, -padx => 5, -height => 5, width => 60)->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5, -side => 'left');
 $cfw_gf_group_1_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
 my $cfw_gf_group1_properties_frame = $cfw_gf_group_1_labelFrame->Frame()->pack();
+$cfw_gf_group1_properties_frame->Label(-text => 'Max')->pack(-pady => 5, -side => 'left');
 my $cfw_gf_group_1_maxError_entry = $cfw_gf_group1_properties_frame->Entry(
 	-width => 5,
 	-insertwidth => 2,
@@ -557,13 +560,14 @@ my $cfw_gf_group_1_maxError_entry = $cfw_gf_group1_properties_frame->Entry(
 	-state => 'normal',
 	-textvariable => \$cfw_gf_group_1_maxError_value
 	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
-$cfw_gf_group1_properties_frame->Label(-text => 'Max % of mismatches')->pack(-pady => 5);;
+$cfw_gf_group1_properties_frame->Label(-text => '% of mismatches')->pack(-pady => 5);
 $cfw_gf_group_1_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_1_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
 
 my $cfw_gf_group_2_labelFrame = $cfw_gf_input_frame->Labelframe(-text => 'Group 2')->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5);
 my $cfw_gf_group_2_text = $cfw_gf_group_2_labelFrame->Scrolled('Text', -scrollbars => 'e', -insertwidth => 1, -wrap => 'word', -foreground => 'black' , -background => 'white', -relief => 'groove', -pady => 5, -padx => 5, -height => 5, width => 60)->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5, -side => 'left');
 $cfw_gf_group_2_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
 my $cfw_gf_group2_properties_frame = $cfw_gf_group_2_labelFrame->Frame()->pack();
+$cfw_gf_group2_properties_frame->Label(-text => 'Max')->pack(-pady => 5, -side => 'left');
 my $cfw_gf_group_2_maxError_entry = $cfw_gf_group2_properties_frame->Entry(
 	-width => 5,
 	-insertwidth => 2,
@@ -571,7 +575,7 @@ my $cfw_gf_group_2_maxError_entry = $cfw_gf_group2_properties_frame->Entry(
 	-state => 'normal',
 	-textvariable => \$cfw_gf_group_2_maxError_value
 	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
-$cfw_gf_group2_properties_frame->Label(-text => '%  Max mismatches')->pack(-pady => 5);
+$cfw_gf_group2_properties_frame->Label(-text => '% of mismatches')->pack(-pady => 5);
 $cfw_gf_group_2_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_2_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
 
 
@@ -580,6 +584,7 @@ my $cfw_gf_group_3_text = $cfw_gf_group_3_labelFrame->Scrolled('Text', -scrollba
 
 $cfw_gf_group_3_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
 my $cfw_gf_group3_properties_frame = $cfw_gf_group_3_labelFrame->Frame()->pack();
+$cfw_gf_group3_properties_frame->Label(-text => 'Max')->pack(-pady => 5, -side => 'left');
 my $cfw_gf_group_3_maxError_entry = $cfw_gf_group3_properties_frame->Entry(
 	-width => 5,
 	-insertwidth => 2,
@@ -587,7 +592,7 @@ my $cfw_gf_group_3_maxError_entry = $cfw_gf_group3_properties_frame->Entry(
 	-state => 'normal',
 	-textvariable => \$cfw_gf_group_3_maxError_value
 	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
-$cfw_gf_group3_properties_frame->Label(-text => '%  Max mismatches')->pack(-pady => 5);;
+$cfw_gf_group3_properties_frame->Label(-text => '% of mismatches')->pack(-pady => 5);
 $cfw_gf_group_3_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_3_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
 
 sub cfw_gf_groupsNo_checker
@@ -678,7 +683,7 @@ $cfw_gf_start_button = $cfw_gf_input_frame->Button(
 #---------------------------------------#
 my $cfw_scf_inputFile_check;
 my $cfw_scf_inputFile_frame = $singleCut_filtration->Frame->pack(-side => 'top', -fill => 'x');
-$cfw_scf_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_scf_inputFile_frame->Label(-text => 'Please, select a VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
 $cfw_scf_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
 my $cfw_scf_inputFile_entry = $cfw_scf_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_scf_input_file)->pack(-side => 'left');
 my $cfw_scf_inputFile_chooseFile_button = $cfw_scf_inputFile_frame->Button(
@@ -740,7 +745,7 @@ my $cfw_scf_progress_label = $cfw_scf_progress_frame->Label()->pack(-side => 'le
 #--------------------#
 my $cfw_c2f_inputFile_check;
 my $cfw_c2f_inputFile_frame = $caps2fasta->Frame->pack(-side => 'top', -fill => 'x');
-$cfw_c2f_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_c2f_inputFile_frame->Label(-text => 'Please, select a VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
 $cfw_c2f_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
 my $cfw_c2f_inputFile_entry = $cfw_c2f_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_c2f_input_file)->pack(-side => 'left');
 my $cfw_c2f_inputFile_chooseFile_button = $cfw_c2f_inputFile_frame->Button(
