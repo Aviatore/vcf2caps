@@ -1,5 +1,5 @@
 # VCF2CAPS v2.0 - the software for CAPS markers identification from Variant Call Format (VCF) file.
-# Copyright 2018 Wojciech Wesołowski
+# Copyright 2021 Wojciech Wesołowski
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -128,7 +128,7 @@ my @singleCutSite_results:shared;
 
 print 'VCF2CAPS v2.0 - the software for CAPS marker identification 
 from Variant Call Format (VCF) files.
-Copyright 2018 Wojciech Wesolowski
+Copyright 2021 Wojciech Wesolowski
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -822,7 +822,7 @@ $about_text->tagBind('hyperlink', '<Button-1>' => sub {
 } );
 $about_text->insert('end',"\n");
 $about_text->insert('end',"VCF2CAPS v2.0\n", 'title_center');
-$about_text->insert('end',"Copyright \x{00A9} 2018 Wojciech Wesołowski\n\n", 'text_center');
+$about_text->insert('end',"Copyright \x{00A9} 2021 Wojciech Wesołowski\n\n", 'text_center');
 $about_text->insert('end',"Free, open-source CAPS mining software from VCF files.\n", 'text_center');
 $about_text->insert('end'," ", 'text_center');
 $about_text->insert('end', "https://github.com/Aviatore/VCF2CAPS.git", 'hyperlink');
