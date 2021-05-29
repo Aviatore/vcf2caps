@@ -1,5 +1,5 @@
 # VCF2CAPS v2.0 - the software for CAPS markers identification from Variant Call Format (VCF) file.
-# Copyright 2018 Wojciech Wesołowski
+# Copyright 2021 Wojciech Wesołowski
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ $|++;
 my $actualSNPNo:shared = 0;
 my $caps_filtered:shared = 0;
 my $capsMining_percent;
-my $cfw_c2f_convertion_percent;
+my $cfw_c2f_conversion_percent;
 my $cfw_c2f_input_file:shared = "";
 my $cfw_c2f_output_file:shared = "";
 my $cfw_gf_CAPS_filtering_percent;
@@ -128,7 +128,7 @@ my @singleCutSite_results:shared;
 
 print 'VCF2CAPS v2.0 - the software for CAPS marker identification 
 from Variant Call Format (VCF) files.
-Copyright 2018 Wojciech Wesolowski
+Copyright 2021 Wojciech Wesolowski
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -470,7 +470,7 @@ my $genotype_filtration = $nb->add(
 
 my $singleCut_filtration = $nb->add(
 	'scf',
-	-label => 'Filtration for single cut site',
+	-label => 'Filtration for a single cut site',
 	-anchor => 'nw',
 	-raisecmd => sub {
 		my @default = $Caps_Filtration_Window->maxsize();
@@ -493,7 +493,7 @@ my $cfw_gf_title_frame = $genotype_filtration->Frame->pack(-side => 'top', -fill
 my $cfw_gf_options_frame = $genotype_filtration->Frame->pack(-side => 'top', -fill => 'x');
 my $cfw_gf_input_frame = $genotype_filtration->Frame->pack(-expand => 1, -side => 'top', -fill => 'both');
 
-$cfw_gf_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_gf_inputFile_frame->Label(-text => 'Please, select a VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
 $cfw_gf_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
 my $cfw_gf_inputFile_entry = $cfw_gf_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_gf_input_file)->pack(-side => 'left');
 my $cfw_gf_inputFile_chooseFile_button = $cfw_gf_inputFile_frame->Button(
@@ -527,21 +527,23 @@ $cfw_gf_inputFile_check = $cfw_gf_inputFile_frame->Label(
 
 
 $cfw_gf_title_frame->Label(
-	-text => 'To filter CAPS markers that differentiate specific individual samples, paste into the following text fields space-, tab- or comma-separated names of individuals/samples.
+	-text => 'To filter CAPS markers that differentiate specific individuals samples, paste into the following text fields space-, tab- or comma-separated symbols of individuals/samples.
 
 Below you can choose the way how CAPS markers will be selected:',
 	-wraplength => 600,
 	-justify => 'left'
 	)->pack(-side => 'left', -padx => 5, -pady => 5);
 
-my $cfw_gf_option_1 = $cfw_gf_options_frame->Radiobutton(
-	-text => 'Only one group corresponds to the specific marker\'s genotype',
-	-value => 1,
+my $cfw_gf_option_2 = $cfw_gf_options_frame->Radiobutton(
+	#-text => 'Each group corresponds to the specific marker\'s genotype',
+	-text => "Mode A: CAPS markers with each genotype \nrepresented by one group of individuals/samples",
+	-value => 0,
 	-variable => \$oneFiltGroup_twoGenotypes
 	)->pack(-side => 'left', -padx => 5, -pady => 5);
-my $cfw_gf_option_2 = $cfw_gf_options_frame->Radiobutton(
-	-text => 'Each group corresponds to the specific marker\'s genotype',
-	-value => 0,
+my $cfw_gf_option_1 = $cfw_gf_options_frame->Radiobutton(
+	#-text => 'Only one group corresponds to the specific marker\'s genotype',
+	-text => "Mode B: CAPS markers with one genotype \nrepresented by one group of individuals/samples",
+	-value => 1,
 	-variable => \$oneFiltGroup_twoGenotypes
 	)->pack(-side => 'left', -padx => 5, -pady => 5);
 $cfw_gf_option_1->select();
@@ -550,6 +552,7 @@ my $cfw_gf_group_1_labelFrame = $cfw_gf_input_frame->Labelframe(-text => 'Group 
 my $cfw_gf_group_1_text = $cfw_gf_group_1_labelFrame->Scrolled('Text', -scrollbars => 'e', -insertwidth => 1, -wrap => 'word', -foreground => 'black' , -background => 'white', -relief => 'groove', -pady => 5, -padx => 5, -height => 5, width => 60)->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5, -side => 'left');
 $cfw_gf_group_1_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
 my $cfw_gf_group1_properties_frame = $cfw_gf_group_1_labelFrame->Frame()->pack();
+$cfw_gf_group1_properties_frame->Label(-text => 'Max')->pack(-pady => 5, -side => 'left');
 my $cfw_gf_group_1_maxError_entry = $cfw_gf_group1_properties_frame->Entry(
 	-width => 5,
 	-insertwidth => 2,
@@ -557,13 +560,14 @@ my $cfw_gf_group_1_maxError_entry = $cfw_gf_group1_properties_frame->Entry(
 	-state => 'normal',
 	-textvariable => \$cfw_gf_group_1_maxError_value
 	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
-$cfw_gf_group1_properties_frame->Label(-text => 'Max % of mismatches')->pack(-pady => 5);;
+$cfw_gf_group1_properties_frame->Label(-text => '% of mismatches')->pack(-pady => 5);
 $cfw_gf_group_1_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_1_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
 
 my $cfw_gf_group_2_labelFrame = $cfw_gf_input_frame->Labelframe(-text => 'Group 2')->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5);
 my $cfw_gf_group_2_text = $cfw_gf_group_2_labelFrame->Scrolled('Text', -scrollbars => 'e', -insertwidth => 1, -wrap => 'word', -foreground => 'black' , -background => 'white', -relief => 'groove', -pady => 5, -padx => 5, -height => 5, width => 60)->pack(-expand => 1, -fill => 'both', -padx => 5, -pady => 5, -side => 'left');
 $cfw_gf_group_2_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
 my $cfw_gf_group2_properties_frame = $cfw_gf_group_2_labelFrame->Frame()->pack();
+$cfw_gf_group2_properties_frame->Label(-text => 'Max')->pack(-pady => 5, -side => 'left');
 my $cfw_gf_group_2_maxError_entry = $cfw_gf_group2_properties_frame->Entry(
 	-width => 5,
 	-insertwidth => 2,
@@ -571,7 +575,7 @@ my $cfw_gf_group_2_maxError_entry = $cfw_gf_group2_properties_frame->Entry(
 	-state => 'normal',
 	-textvariable => \$cfw_gf_group_2_maxError_value
 	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
-$cfw_gf_group2_properties_frame->Label(-text => '%  Max mismatches')->pack(-pady => 5);
+$cfw_gf_group2_properties_frame->Label(-text => '% of mismatches')->pack(-pady => 5);
 $cfw_gf_group_2_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_2_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
 
 
@@ -580,6 +584,7 @@ my $cfw_gf_group_3_text = $cfw_gf_group_3_labelFrame->Scrolled('Text', -scrollba
 
 $cfw_gf_group_3_text->bind('<KeyPress>', \&cfw_gf_groupsNo_checker);
 my $cfw_gf_group3_properties_frame = $cfw_gf_group_3_labelFrame->Frame()->pack();
+$cfw_gf_group3_properties_frame->Label(-text => 'Max')->pack(-pady => 5, -side => 'left');
 my $cfw_gf_group_3_maxError_entry = $cfw_gf_group3_properties_frame->Entry(
 	-width => 5,
 	-insertwidth => 2,
@@ -587,7 +592,7 @@ my $cfw_gf_group_3_maxError_entry = $cfw_gf_group3_properties_frame->Entry(
 	-state => 'normal',
 	-textvariable => \$cfw_gf_group_3_maxError_value
 	)->pack(-padx => 2, -pady => 5, -side => 'left', -anchor => 'n');
-$cfw_gf_group3_properties_frame->Label(-text => '%  Max mismatches')->pack(-pady => 5);;
+$cfw_gf_group3_properties_frame->Label(-text => '% of mismatches')->pack(-pady => 5);
 $cfw_gf_group_3_labelFrame->Button(-text => 'Clear', -width => 4, -command => sub { $cfw_gf_group_3_text->delete('1.0', 'end') } )->pack(-padx => 2, -anchor => 'w');
 
 sub cfw_gf_groupsNo_checker
@@ -678,7 +683,7 @@ $cfw_gf_start_button = $cfw_gf_input_frame->Button(
 #---------------------------------------#
 my $cfw_scf_inputFile_check;
 my $cfw_scf_inputFile_frame = $singleCut_filtration->Frame->pack(-side => 'top', -fill => 'x');
-$cfw_scf_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_scf_inputFile_frame->Label(-text => 'Please, select a VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
 $cfw_scf_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
 my $cfw_scf_inputFile_entry = $cfw_scf_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_scf_input_file)->pack(-side => 'left');
 my $cfw_scf_inputFile_chooseFile_button = $cfw_scf_inputFile_frame->Button(
@@ -740,7 +745,7 @@ my $cfw_scf_progress_label = $cfw_scf_progress_frame->Label()->pack(-side => 'le
 #--------------------#
 my $cfw_c2f_inputFile_check;
 my $cfw_c2f_inputFile_frame = $caps2fasta->Frame->pack(-side => 'top', -fill => 'x');
-$cfw_c2f_inputFile_frame->Label(-text => 'Please, select the VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
+$cfw_c2f_inputFile_frame->Label(-text => 'Please, select a VCF2CAPS output file with identified CAPS markers:')->pack(-side => 'top', -pady => 5, -padx => 5, -anchor => 'w');
 $cfw_c2f_inputFile_frame->Label(-text => 'VCF2CAPS output file:')->pack(-side => 'left', -padx => 5, -pady => 5);
 my $cfw_c2f_inputFile_entry = $cfw_c2f_inputFile_frame->Entry(-insertwidth => 1, -width => 20,-textvariable => \$cfw_c2f_input_file)->pack(-side => 'left');
 my $cfw_c2f_inputFile_chooseFile_button = $cfw_c2f_inputFile_frame->Button(
@@ -781,7 +786,7 @@ $cfw_c2f_start_button = $caps2fasta->Button(
 	-state => 'disabled',
 	-command => sub {
 		$cfw_c2f_start_button->configure(-state => 'disabled');
-		start_caps_to_fasta_convertion();
+		start_caps_to_fasta_conversion();
 	}
 	)->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 
@@ -790,7 +795,7 @@ my $cfw_c2f_progress_frame = $caps2fasta->Frame;
 my $cfw_c2f_stop_button = $cfw_c2f_progress_frame->Button(-image => $cancel_image, -command => sub { $stop = 1 } )->pack(-side => 'left', -anchor => 'w');
 my $cfw_c2f_progress_textFrame = $cfw_c2f_progress_frame->Text(-width => 13, -height => 1, -state => 'disabled')->pack(-side => 'left', -anchor => 'w', -padx => 5);
 my $cfw_c2f_result_label = $cfw_c2f_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
-my $cfw_c2f_progressBar = $cfw_c2f_progress_textFrame->ProgressBar(-variable => \$cfw_c2f_convertion_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
+my $cfw_c2f_progressBar = $cfw_c2f_progress_textFrame->ProgressBar(-variable => \$cfw_c2f_conversion_percent, -width => 14, -length => 90, -gap => 0, -from => 0, -to => 100, -foreground => 'blue', -troughcolor => 'white');
 $cfw_c2f_progress_textFrame->windowCreate('end', -window => $cfw_c2f_progressBar);
 my $cfw_c2f_progress_label = $cfw_c2f_progress_frame->Label()->pack(-side => 'left', -anchor => 'w');
 
@@ -817,7 +822,7 @@ $about_text->tagBind('hyperlink', '<Button-1>' => sub {
 } );
 $about_text->insert('end',"\n");
 $about_text->insert('end',"VCF2CAPS v2.0\n", 'title_center');
-$about_text->insert('end',"Copyright \x{00A9} 2018 Wojciech Wesołowski\n\n", 'text_center');
+$about_text->insert('end',"Copyright \x{00A9} 2021 Wojciech Wesołowski\n\n", 'text_center');
 $about_text->insert('end',"Free, open-source CAPS mining software from VCF files.\n", 'text_center');
 $about_text->insert('end'," ", 'text_center');
 $about_text->insert('end', "https://github.com/Aviatore/VCF2CAPS.git", 'hyperlink');
@@ -2561,14 +2566,15 @@ sub start_reference_check
 							{
 								$reference_check->configure(-image => $fail_image);
 								my @err_data = split(",", $reference_analysis_results[1]);
+								$err_data[1]--;
 								curr_time();
 								$terminal->insert('end', "Warning", 'warning');
-								$terminal->insert('end', " - the refernce file '");
+								$terminal->insert('end', " - the reference file '");
 								$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-								$terminal->insert('end', "' has different line length in '");
-								$terminal->insert('end', "$err_data[0]", 'mark');
-								$terminal->insert('end', "' at line ");
+								$terminal->insert('end', "' has different line length in line '");
 								$terminal->insert('end', "$err_data[1]", 'mark');
+								$terminal->insert('end', "' of ");
+								$terminal->insert('end', "$err_data[0]", 'mark');
 								$terminal->insert('end', ".\n\n");
 								$terminal->see('end');
 							}
@@ -2632,26 +2638,26 @@ sub start_reference_check
 #-------------------------------------------------------------------------------------------------#
 # The subroutine triggers and checks the progress of the VCF2CAPS output file to FASTA conversion #
 #-------------------------------------------------------------------------------------------------#
-sub start_caps_to_fasta_convertion
+sub start_caps_to_fasta_conversion
 {
 	$cfw_c2f_error_label->packForget;
-	$cfw_c2f_convertion_percent = 0;
+	$cfw_c2f_conversion_percent = 0;
 	@caps_to_fasta_result = (0, 0);
 	$caps_filtered = 0;
 	
-	$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
-	$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+	$cfw_c2f_conversion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+	$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_conversion_percent) );
 	$cfw_c2f_progress_frame->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 	
 	curr_time();
-	$terminal->insert('end', "Start convertion of vcf2caps output file into FASTA format ...\n\n");
+	$terminal->insert('end', "Start conversion of vcf2caps output file into FASTA format ...\n\n");
 	$terminal->see('end');
 	
 	$jobID = 12;
 	
 	my $repeat;
 	$repeat = $mw->repeat( 100 => sub {
-		$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+		$cfw_c2f_conversion_percent = ( $caps_filtered / $total_caps_number ) * 100;
 		
 		if ( $caps_to_fasta_result[0] != 0 )
 		{	
@@ -2661,8 +2667,8 @@ sub start_caps_to_fasta_convertion
 				
 			if ( $caps_to_fasta_result[0] == 1 )
 			{
-				$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
-				$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+				$cfw_c2f_conversion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+				$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_conversion_percent) );
 				
 				
 				
@@ -2670,7 +2676,7 @@ sub start_caps_to_fasta_convertion
 				$cfw_c2f_error_label->pack(-side => 'left', -padx => 5, -pady => 5, -anchor => 'w');
 				
 				curr_time();
-				$terminal->insert('end', "Finished convertion of VCF2CAPS output file into FASTA format.");
+				$terminal->insert('end', "Finished conversion of VCF2CAPS output file into FASTA format.");
 				$terminal->insert('end', " $caps_to_fasta_result[1]", 'mark');
 				$terminal->insert('end', " sequences were saved to the file: '");
 				$terminal->insert('end', "$cfw_c2f_output_file_tmp", 'mark');
@@ -2718,8 +2724,8 @@ sub start_caps_to_fasta_convertion
 		}		
 		elsif ( $caps_filtered > 0 and $total_caps_number > 0 )
 		{
-			$cfw_c2f_convertion_percent = ( $caps_filtered / $total_caps_number ) * 100;
-			$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_convertion_percent) );
+			$cfw_c2f_conversion_percent = ( $caps_filtered / $total_caps_number ) * 100;
+			$cfw_c2f_progress_label->configure(-text => sprintf ("%d/%d   %.1f%%", $caps_filtered,$total_caps_number,$cfw_c2f_conversion_percent) );
 		}
 	} );
 }
@@ -2870,7 +2876,7 @@ sub start_caps_filtration
 
 
 #----------------------------------------------------------------------------------------#
-# The subroutine triggers and checks the progress of the VCF to v2c file convertion step #
+# The subroutine triggers and checks the progress of the VCF to v2c file conversion step #
 #----------------------------------------------------------------------------------------#
 sub raw_start_vcf_check
 {
@@ -3065,7 +3071,7 @@ sub raw_start_vcf_check
 										
 										$terminal->insert('end', "\n\n");
 										curr_time();
-										$terminal->insert('end', "Convertion completed sucessfully.\n\n");
+										$terminal->insert('end', "Conversion completed sucessfully.\n\n");
 										$terminal->see('end');
 										
 										if ($reference_analysis_results[0] == 1 and $enzyme_analysis_results[0] == 1 and $vcf_analysis_results{err_code} == 1)
@@ -3086,18 +3092,18 @@ sub raw_start_vcf_check
 										$terminal->insert('end', "Warning",'warning');
 										if ( $sequencesNotPresentInRef_No > 0 and $markersOnTheEdge_No > 0)
 										{
-											$terminal->insert('end', " - convertion completed. However, some problems occurred:\n");
+											$terminal->insert('end', " - conversion completed. However, some problems occurred:\n");
 										}
 										else
 										{
-											$terminal->insert('end', " - convertion completed. However, a problem occurred:\n");
+											$terminal->insert('end', " - conversion completed. However, a problem occurred:\n");
 										}
 										
 										if ( $sequencesNotPresentInRef_No > 0 )
 										{
 											if ( $sequencesNotPresentInRef_No <= 5 )
 											{
-												$terminal->insert('end', "The SNPs/InDels listed below were located in the sequences not present in the reference file '");
+												$terminal->insert('end', "The following polymorphisms are located in sequences which are not present in the reference file '");
 												$terminal->insert('end', "$reference_file_name_tmp", 'mark');
 												$terminal->insert('end', "':\n");
 													
@@ -3110,16 +3116,16 @@ sub raw_start_vcf_check
 											}
 											else
 											{
-												LOG("\n# Convertion of VCF file into v2c format");
-												LOG("# SNPs/InDels located in the sequences not present in the reference file $reference_file_name_tmp");
+												LOG("\n# Conversion of VCF file into v2c format");
+												LOG("# The following polymorphisms are located in sequences which are not present in the reference file $reference_file_name_tmp");
 												foreach my $text (@sequencesNotPresentInRef)
 												{
 													LOG($text);
 												}
 												$terminal->insert('end', "$sequencesNotPresentInRef_No_forReport", 'mark');
-												$terminal->insert('end', " SNPs/InDels were located in the sequences not present in the reference file '");
+												$terminal->insert('end', " polymorphisms were located in sequences which are not present in the reference file '");
 												$terminal->insert('end', "$reference_file_name_tmp", 'mark');
-												$terminal->insert('end', "'. The list of those SNPs/InDels were saved in the ");
+												$terminal->insert('end', "'. The list of those polymorphisms were saved in the ");
 												$terminal->insert('end', "log.txt", 'mark');
 												$terminal->insert('end', " file.\n");
 												$terminal->see('end');
@@ -3130,9 +3136,9 @@ sub raw_start_vcf_check
 										{															
 											if ( $markersOnTheEdge_No <= 5 )
 											{
-												$terminal->insert('end', "The SNPs/InDels listed below were located closer to the edges of the sequences than ");
+												$terminal->insert('end', "The following polymorphisms are less than ");
 												$terminal->insert('end', "$snps_seq_len", 'mark');
-												$terminal->insert('end', " bp:\n");
+												$terminal->insert('end', " bp from one end of their source sequences:\n");
 												
 												foreach my $markerOnTheEdge (@markersOnTheEdge)
 												{
@@ -3143,17 +3149,19 @@ sub raw_start_vcf_check
 											}
 											else
 											{
-												LOG("\n# Convertion of VCF file into v2c format");
-												LOG("# SNPs/InDels located closer to the edges of the sequences than 40 bp");
+												LOG("\n# Conversion of VCF file into v2c format");
+												LOG("# The following polymorphisms are less than $snps_seq_len bp from one end of their source sequences:");
+
 												foreach my $text (@markersOnTheEdge)
 												{
 													LOG($text);
 												}
+
 												$terminal->insert('end', "$markersOnTheEdge_No_forReport", 'mark');
-												$terminal->insert('end', " SNPs/InDels were located closer to the edges of the sequences than ");
+												$terminal->insert('end', " polymorphisms are less than ");
 												$terminal->insert('end', "$snps_seq_len", 'mark');
-												$terminal->insert('end', " bp:\n");
-												$terminal->insert('end', "The list of those SNPs/InDels were saved in the ");
+												$terminal->insert('end', " bp from one end of their source sequences:\n");
+												$terminal->insert('end', "The list of those polymorphisms were saved in the ");
 												$terminal->insert('end', "log.txt", 'mark');
 												$terminal->insert('end', " file.\n");
 												$terminal->see('end');
@@ -3219,8 +3227,8 @@ sub raw_start_vcf_check
 										$terminal->insert('end', "\n\n");
 										curr_time();
 										$terminal->insert('end', "Warning",'warning');
-										$terminal->insert('end', " - convertion failed. Something went horribly wrong. \n");
-										$terminal->insert('end', "Please, check whether you have choosen the right reference file.\n\n");
+										$terminal->insert('end', " - conversion failed. Something went seriously wrong. \n");
+										$terminal->insert('end', "Please, check if you have chosen the right reference file.\n\n");
 										$terminal->see('end');
 										
 										unlink($working_dir . $v2c_file_name_tmp) if ( -e $working_dir . $v2c_file_name_tmp );
@@ -3263,9 +3271,9 @@ sub raw_start_vcf_check
 							$terminal->insert('end', "Warning", 'warning');
 							$terminal->insert('end', " - the file '");
 							$terminal->insert('end', "$raw_vcf_file_name_tmp", 'mark');
-							$terminal->insert('end', "' does not have the header '");
+							$terminal->insert('end', "' does not have the '");
 							$terminal->insert('end', "#CHROM",'mark');
-							$terminal->insert('end', "'. Is it really VCF file?\n\n");
+							$terminal->insert('end', "' line in the header. Is it really a VCF file?\n\n");
 							$terminal->see('end');
 						}
 						elsif ($vcf_analysis_results{err_code} == 6)
@@ -3812,6 +3820,7 @@ sub work
 					}
 					
 						print $Ofh "#$reference_md5\n";
+						my $index_error = 0;
 						
 						L: while (<$fh>)
 						{
@@ -3860,6 +3869,7 @@ sub work
 												unlink $working_dir . $reference_file_name_tmp . ".index";
 												
 												@genome_error = (2,"$chrom_ID,$.");
+												$index_error = 1;
 												last L;
 											}
 											$alert = 1;
@@ -3872,6 +3882,7 @@ sub work
 												unlink $working_dir . $reference_file_name_tmp . ".index";
 												
 												@genome_error = (2,"$chrom_ID,$.");
+												$index_error = 1;
 												last L;
 											}
 										}
@@ -3881,7 +3892,7 @@ sub work
 								}
 							}
 						}
-						if ($chrom_len != 0) {print $Ofh "$last_line_len\t$chrom_len\n"; $chrom_len = 0}
+						if ($chrom_len != 0 and $index_error == 0) {print $Ofh "$last_line_len\t$chrom_len\n"; $chrom_len = 0}
 
 					close $fh;
 					close $Ofh;
